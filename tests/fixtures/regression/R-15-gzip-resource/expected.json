@@ -1,0 +1,6 @@
+{
+  "servers_path": "src/everything/tools/gzip-file-as-resource.ts",
+  "package_depth": "full",
+  "required_rule_ids": ["RES-07"],
+  "required_analyzers_any": ["resources_abuse"]
+}

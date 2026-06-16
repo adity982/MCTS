@@ -56,6 +56,18 @@ def build_scan_notes(config: ScanConfig) -> list[str]:
     return notes
 
 
+def static_live_gap_notice(*, live: bool, remote_url: str | None) -> str | None:
+    """Phase 2 Step 2.13 — list live-only checks not run during static scan."""
+    if live or remote_url:
+        return None
+    return (
+        "Static scan complete. Live-only checks not run:\n"
+        "  - sampling_abuse (CAP-04)\n"
+        "  - protocol_checks MCPS-002 (TRANS-04)\n"
+        "Run: mcts scan --url http://127.0.0.1:3001/mcp --live --i-understand-live-risk"
+    )
+
+
 def needs_tool_discovery_notice(report: ScanReport, *, live: bool, snapshot: bool) -> bool:
     if live or snapshot:
         return False

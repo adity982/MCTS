@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 1 security regression runner (R-01–R-08, R-13, R-14, R-21, R-22)."""
+"""Phase 1–2 security regression runner (R-01–R-22)."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def _scan_target(target: Path, spec: dict):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run Phase 1 security regression fixtures")
+    parser = argparse.ArgumentParser(description="Run Phase 1–2 security regression fixtures")
     parser.add_argument(
         "--servers-root",
         type=Path,
@@ -93,13 +93,25 @@ def main() -> int:
 
     fixture_dirs = args.fixtures or [
         "R-01-net-fetch",
+        "R-02-dual-fetch",
         "R-03-pois-fetch-desc",
         "R-04-git-scoping",
+        "R-05-git-log",
         "R-06-transport-everything",
         "R-07-get-env",
         "R-08-gzip-net",
+        "R-09-toctou-test",
+        "R-10-symlink-listing",
+        "R-11-memory-readme",
+        "R-12-get-env-ann",
         "R-13-time-docker",
         "R-14-fetch-cli",
+        "R-15-gzip-resource",
+        "R-16-tasks-research",
+        "R-17-subscriptions",
+        "R-18-read-multiple",
+        "R-19-memory-poison",
+        "R-20-git-readme",
         "R-22-streamable-get-env",
         "MCTS-T-monorepo-servers",
     ]

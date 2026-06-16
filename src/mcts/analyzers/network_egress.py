@@ -33,6 +33,10 @@ _GZIP_ALLOWLIST_DEFAULT_EMPTY = re.compile(
 _FETCH_NO_REDIRECT_MANUAL = re.compile(r"fetch\s*\([^)]*\{[^}]*redirect\s*:\s*[\"']manual[\"']", re.DOTALL)
 _DATA_URI_DECODE = re.compile(r"protocol\s*===\s*[\"']data:[\"']|validateDataURI|data:\s*URI", re.IGNORECASE)
 _METADATA_URL = re.compile(r"169\.254\.169\.254|metadata\.google|/latest/meta-data/", re.IGNORECASE)
+_READABILIPY = re.compile(r"readabilipy|markdownify|readability", re.IGNORECASE)
+_SIZE_CAP_BEFORE_PARSE = re.compile(r"max_length|maxLength|len\s*\(.*\)\s*>|truncate", re.MULTILINE)
+_FORCE_RAW = re.compile(r"force_raw|args\.raw", re.IGNORECASE)
+_START_INDEX = re.compile(r"start_index|startIndex", re.IGNORECASE)
 _PROXY_URL_CLI = re.compile(r"--proxy-url")
 _ANYURL_PATTERN = re.compile(r"\bAnyUrl\b")
 _HTTPURL_PATTERN = re.compile(r"\bHttpUrl\b")
@@ -225,6 +229,48 @@ class NetworkEgressAnalyzer(BaseAnalyzer):
                     file=path,
                     line=_line_no(content, _ANYURL_PATTERN),
                     confidence=0.65,
+                )
+            )
+        findings.extend(self._check_fetch_depth(path, content))
+        return findings
+
+    def _check_fetch_depth(self, path: str, content: str) -> list[Finding]:
+        """FETCH-01–03 depth patterns (Phase 2 Step 2.9c)."""
+        findings: list[Finding] = []
+        if _READABILIPY.search(content) and not _SIZE_CAP_BEFORE_PARSE.search(content):
+            findings.append(
+                _net_finding(
+                    rule_id="FETCH-01",
+                    title="HTML/markdown parser without input size cap",
+                    description="readabilipy/markdownify may parse unbounded remote content.",
+                    severity=Severity.MEDIUM,
+                    file=path,
+                    line=_line_no(content, _READABILIPY),
+                    confidence=0.6,
+                )
+            )
+        if _FORCE_RAW.search(content) and "Content-Type" in content:
+            findings.append(
+                _net_finding(
+                    rule_id="FETCH-02",
+                    title="force_raw path may parse HTML without Content-Type guard",
+                    description="Empty Content-Type with force_raw enables HTML parser path.",
+                    severity=Severity.MEDIUM,
+                    file=path,
+                    line=_line_no(content, _FORCE_RAW),
+                    confidence=0.55,
+                )
+            )
+        if _START_INDEX.search(content) and "max_length" in content:
+            findings.append(
+                _net_finding(
+                    rule_id="FETCH-03",
+                    title="start_index truncation enables multi-call exfil loops",
+                    description="Pagination fields may allow chunked exfiltration across repeated calls.",
+                    severity=Severity.LOW,
+                    file=path,
+                    line=_line_no(content, _START_INDEX),
+                    confidence=0.5,
                 )
             )
         return findings

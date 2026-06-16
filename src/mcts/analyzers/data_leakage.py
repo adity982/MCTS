@@ -44,6 +44,11 @@ HIDDEN_CHAR_PATTERN = re.compile(r"[\u200b-\u200f\ufeff\u202a-\u202e]")
 
 _PROCESS_ENV_DUMP = re.compile(r"JSON\.stringify\s*\(\s*process\.env", re.MULTILINE)
 _GET_ENV_TOOL = re.compile(r"registerGetEnvTool|name\s*=\s*[\"']get-env[\"']")
+_ROBOTS_ERROR = re.compile(r"robot_txt|robots\.txt", re.IGNORECASE)
+_HTTP_BODY_IN_ERROR = re.compile(
+    r"(?:ErrorData|raise\s+\w+Error)\([^)]*(?:response\.text|response\.content|str\(e\))",
+    re.MULTILINE,
+)
 
 LOGGING_CALL_PATTERN = re.compile(
     r"""
@@ -74,6 +79,7 @@ class DataLeakageAnalyzer(BaseAnalyzer):
         findings.extend(self._scan_metadata(server))
         findings.extend(self._scan_source_files(server))
         findings.extend(self._scan_env_dump(server))
+        findings.extend(self._scan_error_disclosure(server))
         return [tag_data_leakage_finding(f) for f in findings]
 
     def _scan_metadata(self, server: MCPServerInfo) -> list[Finding]:
@@ -199,6 +205,39 @@ class DataLeakageAnalyzer(BaseAnalyzer):
                     extra_evidence={"finding_class": "security", "surface": "tool"},
                 )
             )
+        return findings
+
+    def _scan_error_disclosure(self, server: MCPServerInfo) -> list[Finding]:
+        """POIS-05 — error messages leaking robots.txt policy or full HTTP bodies."""
+        findings: list[Finding] = []
+        for file_path, content in server.source_files.items():
+            if not content:
+                continue
+            for pattern, label in (
+                (_ROBOTS_ERROR, "robots.txt policy details"),
+                (_HTTP_BODY_IN_ERROR, "full HTTP response or exception text"),
+            ):
+                match = pattern.search(content)
+                if not match:
+                    continue
+                line = content[: match.start()].count("\n") + 1
+                findings.append(
+                    build_analyzer_finding(
+                        finding_id=f"pois-05-{hash((file_path, label)) & 0xFFFF}",
+                        analyzer=self.name,
+                        title=f"Error disclosure: {label}",
+                        description=f"Error path may leak {label} to the agent context (POIS-05).",
+                        severity=Severity.MEDIUM,
+                        recommendation="Return generic errors; redact HTTP bodies and robots policy details.",
+                        rule_id="POIS-05",
+                        match=label,
+                        field="error_handler",
+                        location=SourceLocation(file=file_path, line=line),
+                        technique_id="MCTS-T-pois-error-disclosure",
+                        confidence=0.65,
+                        extra_evidence={"finding_class": "security", "surface": "tool"},
+                    )
+                )
         return findings
 
 

@@ -147,7 +147,6 @@ def _enclosing_function_body(content: str, offset: int) -> str:
             break
     return "\n".join(body_lines)
 
-
 def _dos_finding(
     rule_id: str,
     title: str,

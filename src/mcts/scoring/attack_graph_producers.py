@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Any
 
 from mcts.mcp.models import MCPServerInfo, MCPTool
 from mcts.reporting.models import Finding
@@ -65,8 +66,7 @@ def _edge_from_finding(
     )
 
 
-class GraphEdgeExporter(Protocol):
-    def __call__(self, server: MCPServerInfo, findings: list[Finding]) -> list[GraphEdge]: ...
+GraphEdgeExporter = Callable[[MCPServerInfo, list[Finding]], list[GraphEdge]]
 
 
 def export_network_egress_edges(server: MCPServerInfo, findings: list[Finding]) -> list[GraphEdge]:

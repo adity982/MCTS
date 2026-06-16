@@ -1,0 +1,6 @@
+{
+  "servers_path": "src/time",
+  "package_depth": "full",
+  "forbidden_rule_ids": ["AUTH-02"],
+  "note": "R-13 — time Dockerfile ENTRYPOINT must not trigger git AUTH-02"
+}

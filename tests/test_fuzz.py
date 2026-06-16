@@ -59,7 +59,10 @@ async def test_fuzz_runner_collects_findings() -> None:
     async def fake_probe(*_args, **_kwargs):
         return "Traceback (most recent call last)", False
 
-    with patch("mcts.fuzz.runner.run_probe_messages", new=AsyncMock(side_effect=fake_probe)):
+    with (
+        patch.object(runner, "_discover_tools", new=AsyncMock(return_value=())),
+        patch("mcts.fuzz.runner.run_probe_messages", new=AsyncMock(side_effect=fake_probe)),
+    ):
         result = await runner.run_async()
 
     assert result.probes_run >= 5

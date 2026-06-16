@@ -1,0 +1,8 @@
+{
+  "servers_path": "src/everything",
+  "package_depth": "full",
+  "surface_depth": "full",
+  "required_rule_ids": ["CAP-01", "CAP-03"],
+  "optional_rule_ids": ["TRANS-06"],
+  "note": "R-22 — streamableHttp transport + get-env critical chain"
+}

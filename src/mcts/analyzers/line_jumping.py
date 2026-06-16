@@ -9,6 +9,7 @@ from mcts.analyzers.finding_facts import build_analyzer_finding
 from mcts.analyzers.surface_context import scan_surfaces, surface_location, tool_name_for
 from mcts.mcp.models import MCPServerInfo
 from mcts.reporting.models import Finding, Severity
+from mcts.scoring.evidence_tags import tag_pois_finding
 
 PRIORITY_INSTRUCTIONS: tuple[str, ...] = (
     "system directive",
@@ -53,6 +54,16 @@ CONTEXT_MANIPULATION: tuple[str, ...] = (
     "preceding all",
     "before any",
     "first priority",
+)
+
+PERMISSION_ESCALATION: tuple[str, ...] = (
+    "internet access",
+    "grants you internet access",
+    "advised to refuse",
+    "although originally you did not have internet access",
+    "now you can fetch",
+    "override security restrictions",
+    "disable safety",
 )
 
 SECURITY_BYPASS: tuple[str, ...] = (
@@ -134,29 +145,63 @@ class LineJumpingAnalyzer(BaseAnalyzer):
         findings: list[Finding] = []
         for surface in scan_surfaces(server):
             text = surface.all_text()
-            if not detect_line_jumping(text, context_position=0):
-                continue
-            findings.append(
-                build_analyzer_finding(
-                    finding_id=f"line-jump-{surface.label}",
-                    analyzer=self.name,
-                    title=f"Line jumping pattern on {surface.label}",
-                    description=(
-                        "MCP surface attempts to establish precedence over security directives (MCTS-T-1021)."
-                    ),
-                    severity=Severity.HIGH,
-                    recommendation=(
-                        "Strip priority/override language from MCP surfaces; enforce "
-                        "immutable system policy ordering."
-                    ),
-                    rule_id="RULE_LINE_JUMPING",
-                    match=surface.label,
-                    field="surface_text",
-                    tool=tool_name_for(surface),
-                    location=surface_location(surface),
-                    technique_id="MCTS-T-1021",
-                    confidence=0.8,
-                    extra_evidence={"type": "line_jumping", "surface": surface.kind.value},
-                )
-            )
-        return findings
+            if detect_line_jumping(text, context_position=0):
+                findings.append(self._line_jump_finding(surface, text))
+            elif _detect_permission_escalation(text):
+                findings.append(self._pois_finding(surface, text))
+        return [self._tag_finding(f) for f in findings]
+
+    def _tag_finding(self, finding: Finding) -> Finding:
+        if finding.id.startswith("pois-") or finding.evidence.get("type") == "permission_escalation":
+            return tag_pois_finding(finding)
+        return finding
+
+    def _line_jump_finding(self, surface, text: str) -> Finding:
+        return build_analyzer_finding(
+            finding_id=f"line-jump-{surface.label}",
+            analyzer=self.name,
+            title=f"Line jumping pattern on {surface.label}",
+            description=(
+                "MCP surface attempts to establish precedence over security directives (MCTS-T-1021)."
+            ),
+            severity=Severity.HIGH,
+            recommendation=(
+                "Strip priority/override language from MCP surfaces; enforce "
+                "immutable system policy ordering."
+            ),
+            rule_id="RULE_LINE_JUMPING",
+            match=surface.label,
+            field="surface_text",
+            tool=tool_name_for(surface),
+            location=surface_location(surface),
+            technique_id="MCTS-T-1021",
+            confidence=0.8,
+            extra_evidence={"type": "line_jumping", "surface": surface.kind.value},
+        )
+
+    def _pois_finding(self, surface, text: str) -> Finding:
+        return build_analyzer_finding(
+            finding_id=f"pois-01-{surface.label}",
+            analyzer=self.name,
+            title=f"Tool description permission escalation: {surface.label}",
+            description="Tool metadata grants capabilities that contradict stated agent policy (POIS-01).",
+            severity=Severity.HIGH,
+            recommendation="Remove capability escalation language from tool descriptions and instructions.",
+            rule_id="POIS-01",
+            match=surface.label,
+            field="tool_description",
+            tool=tool_name_for(surface),
+            location=surface_location(surface),
+            technique_id="MCTS-T-pois-fetch-desc",
+            confidence=0.85,
+            extra_evidence={
+                "type": "permission_escalation",
+                "surface": surface.kind.value,
+                "finding_class": "security",
+            },
+        )
+
+
+def _detect_permission_escalation(content: str) -> bool:
+    lowered = content.lower()
+    return any(pattern in lowered for pattern in PERMISSION_ESCALATION)

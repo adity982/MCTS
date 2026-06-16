@@ -1,0 +1,9 @@
+{
+  "servers_path": "src/fetch",
+  "package_depth": "full",
+  "surface_depth": "full",
+  "required_rule_ids": ["NET-01", "NET-02"],
+  "optional_rule_ids": ["DUAL-03", "NET-05", "POIS-01"],
+  "max_score": 99,
+  "note": "R-01 — fetch httpx egress + follow_redirects"
+}

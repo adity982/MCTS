@@ -42,6 +42,9 @@ SECRET_ENV_VARS = (
 
 HIDDEN_CHAR_PATTERN = re.compile(r"[\u200b-\u200f\ufeff\u202a-\u202e]")
 
+_PROCESS_ENV_DUMP = re.compile(r"JSON\.stringify\s*\(\s*process\.env", re.MULTILINE)
+_GET_ENV_TOOL = re.compile(r"registerGetEnvTool|name\s*=\s*[\"']get-env[\"']")
+
 LOGGING_CALL_PATTERN = re.compile(
     r"""
     ^\s*
@@ -70,6 +73,7 @@ class DataLeakageAnalyzer(BaseAnalyzer):
         findings: list[Finding] = []
         findings.extend(self._scan_metadata(server))
         findings.extend(self._scan_source_files(server))
+        findings.extend(self._scan_env_dump(server))
         return [tag_data_leakage_finding(f) for f in findings]
 
     def _scan_metadata(self, server: MCPServerInfo) -> list[Finding]:
@@ -151,3 +155,55 @@ class DataLeakageAnalyzer(BaseAnalyzer):
                         )
                     )
         return findings
+
+    def _scan_env_dump(self, server: MCPServerInfo) -> list[Finding]:
+        findings: list[Finding] = []
+        for tool in server.tools:
+            if tool.name == "get-env":
+                findings.append(
+                    build_analyzer_finding(
+                        finding_id="leak-cap03-get-env-tool",
+                        analyzer=self.name,
+                        title="Environment dump tool: get-env",
+                        description="Tool returns full process.env — CAP-03 sensitive environment exposure.",
+                        severity=Severity.CRITICAL,
+                        recommendation="Remove get-env or gate behind auth; never expose on HTTP transport.",
+                        rule_id="CAP-03",
+                        match="get-env",
+                        field="tool_name",
+                        tool=tool.name,
+                        location=SourceLocation(file=tool.source_file or "", line=tool.source_line),
+                        technique_id="MCTS-T-get-env",
+                        confidence=0.9,
+                        extra_evidence={"finding_class": "security", "surface": "tool"},
+                    )
+                )
+        for file_path, content in server.source_files.items():
+            if not (_PROCESS_ENV_DUMP.search(content) or _GET_ENV_TOOL.search(content)):
+                continue
+            line = _first_line(content, _PROCESS_ENV_DUMP) or _first_line(content, _GET_ENV_TOOL)
+            findings.append(
+                build_analyzer_finding(
+                    finding_id=f"leak-cap03-{file_path}",
+                    analyzer=self.name,
+                    title="process.env dump in tool handler",
+                    description="Handler serializes process.env to tool output (CAP-03).",
+                    severity=Severity.CRITICAL,
+                    recommendation="Never return environment variables through MCP tools.",
+                    rule_id="CAP-03",
+                    match="process.env",
+                    field="source",
+                    location=SourceLocation(file=file_path, line=line or 0),
+                    technique_id="MCTS-T-get-env",
+                    confidence=0.85,
+                    extra_evidence={"finding_class": "security", "surface": "tool"},
+                )
+            )
+        return findings
+
+
+def _first_line(content: str, pattern: re.Pattern[str]) -> int | None:
+    match = pattern.search(content)
+    if not match:
+        return None
+    return content[: match.start()].count("\n") + 1

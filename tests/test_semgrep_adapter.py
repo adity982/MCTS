@@ -15,6 +15,32 @@ from mcts.mcp.models import MCPServerInfo
 from mcts.reporting.models import Severity
 
 
+def test_findings_from_payload_net02_rule_id() -> None:
+    payload = {
+        "results": [
+            {
+                "check_id": "mcp-httpx-follow-redirects-no-guard",
+                "path": "server.py",
+                "start": {"line": 79, "col": 8},
+                "extra": {
+                    "message": "httpx follow_redirects=True without redirect re-validation (NET-02)",
+                    "severity": "WARNING",
+                    "metadata": {
+                        "rule_id": "NET-02",
+                        "technique_id": "MCTS-T-net-02",
+                        "category": "network_egress",
+                    },
+                },
+            }
+        ]
+    }
+    findings = _findings_from_payload(payload, analyzer="semgrep_sast")
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.evidence.get("rule_id") == "NET-02"
+    assert finding.evidence.get("exploitability_class") == "network_egress"
+
+
 def test_findings_from_semgrep_payload() -> None:
     payload = {
         "results": [

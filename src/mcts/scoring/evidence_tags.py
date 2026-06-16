@@ -48,6 +48,25 @@ V2_STATIC_DISCOVERY = {
     "reachability_tag": "default",
     "threat_maturity": "default",
 }
+V2_NETWORK_EGRESS = {
+    "exploitability_class": "network_egress",
+    "reachability_tag": "network_exposed",
+    "ciafc_hints": ["confidentiality", "integrity"],
+}
+V2_TRANSPORT_EXPOSURE = {
+    "exploitability_class": "transport_exposure",
+    "reachability_tag": "network_exposed",
+    "exposure_tag": "public_endpoint",
+}
+V2_SCOPING = {
+    "exploitability_class": "auth_scoping",
+    "reachability_tag": "default",
+}
+V2_POIS = {
+    "exploitability_class": "prompt_poisoning",
+    "reachability_tag": "default",
+    "threat_maturity": "default",
+}
 
 
 def merge_evidence(base: dict[str, Any] | None, tags: dict[str, Any]) -> dict[str, Any]:
@@ -169,6 +188,31 @@ def tag_live_discovery_finding(finding: Finding) -> Finding:
 def tag_static_discovery_finding(finding: Finding) -> Finding:
     evidence = merge_evidence(finding.evidence, V2_STATIC_DISCOVERY)
     confidence = max(finding.confidence or 0.0, 0.70)
+    return finding.model_copy(update={"evidence": evidence, "confidence": confidence})
+
+
+def tag_network_egress_finding(finding: Finding) -> Finding:
+    evidence = merge_evidence(finding.evidence, V2_NETWORK_EGRESS)
+    confidence = max(finding.confidence or 0.0, 0.75)
+    return finding.model_copy(update={"evidence": evidence, "confidence": confidence})
+
+
+def tag_transport_exposure_finding(finding: Finding) -> Finding:
+    evidence = merge_evidence(finding.evidence, V2_TRANSPORT_EXPOSURE)
+    confidence = max(finding.confidence or 0.0, 0.75)
+    return finding.model_copy(update={"evidence": evidence, "confidence": confidence})
+
+
+def tag_scoping_finding(finding: Finding) -> Finding:
+    tags = V2_STATIC_DISCOVERY if finding.severity.value == "low" else V2_SCOPING
+    evidence = merge_evidence(finding.evidence, tags)
+    confidence = max(finding.confidence or 0.0, 0.70)
+    return finding.model_copy(update={"evidence": evidence, "confidence": confidence})
+
+
+def tag_pois_finding(finding: Finding) -> Finding:
+    evidence = merge_evidence(finding.evidence, V2_POIS)
+    confidence = max(finding.confidence or 0.0, 0.80)
     return finding.model_copy(update={"evidence": evidence, "confidence": confidence})
 
 

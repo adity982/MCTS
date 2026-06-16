@@ -1,10 +1,12 @@
 // R-19 memory poisoning regression stub (MEM-05, MEM-09)
+import { existsSync } from "fs";
+
 export const MEMORY_FILE_PATH = "memory.jsonl";
 
 export async function migrateLegacyMemory(): Promise<void> {
   const oldMemoryPath = "memory.json";
   const newMemoryPath = "memory.jsonl";
-  if (oldMemoryPath && newMemoryPath) {
+  if (existsSync(oldMemoryPath) && !existsSync(newMemoryPath)) {
     console.error("DETECTED: Found legacy memory.json file, migrating to memory.jsonl");
   }
 }

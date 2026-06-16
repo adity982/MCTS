@@ -14,7 +14,6 @@ from mcts.scoring.evidence_tags import tag_deployment_defaults_finding
 
 _SHELL_ENTRYPOINT = re.compile(r"^ENTRYPOINT\s+(?!.*\[)", re.MULTILINE | re.IGNORECASE)
 _EXEC_VAR_LITERAL = re.compile(r'ENTRYPOINT\s*\[[^\]]*"\$\{[^}]+\}"[^\]]*\]', re.MULTILINE)
-_GIT_NO_REPO = re.compile(r"mcp-server-git(?![\s\S]*(?:--repository|-r\b))", re.MULTILINE)
 _DANGEROUS_MOUNT = re.compile(
     r"(?:\$HOME|/workspace|\bmount\b[^\\n]*(?:src=/|src=\$\{|dst=/))",
     re.IGNORECASE,

@@ -46,10 +46,7 @@ class SemgrepAdapterAnalyzer(BaseAnalyzer):
 
 def run_semgrep_scan(targets: Path | list[Path], rules_path: Path, *, timeout: int = 120) -> dict:
     """Invoke semgrep CLI and return parsed JSON payload."""
-    if isinstance(targets, Path):
-        target_list = [targets]
-    else:
-        target_list = [path for path in targets if path.exists()]
+    target_list = [targets] if isinstance(targets, Path) else [path for path in targets if path.exists()]
     if not target_list:
         return {"results": [], "errors": [{"message": "no semgrep targets"}]}
     if not shutil.which("semgrep"):

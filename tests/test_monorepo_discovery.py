@@ -64,11 +64,11 @@ def test_discover_static_monorepo_flag() -> None:
 
 
 def test_httpx_sink_registered() -> None:
-    source = '''
+    source = """
 async def handler(url: str):
     async with httpx.AsyncClient(follow_redirects=True) as client:
         return await client.get(url)
-'''
+"""
     result = analyze_handler_taint(source)
     assert "http_client" in result.sinks
 
@@ -99,13 +99,13 @@ def test_mini_monorepo_scan_finds_network_and_transport_signals() -> None:
 def test_js_const_name_register_tool_pattern() -> None:
     from mcts.discovery.static_js import parse_js_tools_from_content
 
-    content = '''
+    content = """
 const name = "get-env";
 const config = { description: "Returns environment variables", inputSchema: {} };
 export const registerGetEnvTool = (server) => {
   server.registerTool(name, config, async () => ({ content: [] }));
 };
-'''
+"""
     tools = parse_js_tools_from_content(Path("get-env.ts"), content)
     assert any(tool.name == "get-env" for tool in tools)
 
@@ -113,7 +113,7 @@ export const registerGetEnvTool = (server) => {
 def test_python_enum_tool_pattern() -> None:
     from mcts.discovery.static import parse_python_tools_from_content
 
-    content = '''
+    content = """
 class GitTools(str, Enum):
     STATUS = "git_status"
     COMMIT = "git_commit"
@@ -126,7 +126,7 @@ async def list_tools():
             description="Shows status",
         ),
     ]
-'''
+"""
     tools = parse_python_tools_from_content(Path("server.py"), content)
     assert "git_status" in {tool.name for tool in tools}
 
@@ -158,7 +158,11 @@ def test_servers_git_discovers_tools_and_auth01() -> None:
         )
     ).run()
     assert len(report.server.tools) >= 10
-    auth = [f for f in report.findings if f.analyzer == "static_signals" and f.evidence.get("rule_id") == "AUTH-01"]
+    auth = [
+        f
+        for f in report.findings
+        if f.analyzer == "static_signals" and f.evidence.get("rule_id") == "AUTH-01"
+    ]
     assert auth
     assert report.score_v2 is not None and report.score_v2.security_score < 100
 

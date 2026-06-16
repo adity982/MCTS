@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
 
 from mcts.analyzers.base import BaseAnalyzer
 from mcts.analyzers.context_memory_implant import detect_context_memory_implant
@@ -13,8 +12,8 @@ from mcts.analyzers.finding_facts import build_analyzer_finding
 from mcts.analyzers.parameter_exfil_chain import detect_parameter_exfil_chain
 from mcts.analyzers.shared_memory_poisoning import detect_shared_memory_poisoning
 from mcts.mcp.models import MCPServerInfo
-from mcts.reporting.finding_evidence import attach_spec_evidence
 from mcts.reporting.finding_builder import FindingBuilder
+from mcts.reporting.finding_evidence import attach_spec_evidence
 from mcts.reporting.models import Finding, Severity, SourceLocation
 
 _APP_LISTEN = re.compile(r"\b(?:app|server|express\(\))\.listen\s*\(", re.MULTILINE)
@@ -86,9 +85,18 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
             file=path,
             line=line,
         )
-        return [builder.location(path, line).confidence(0.75)
-            .fact(rule_id="CAP-01", match="app.listen without localhost bind", field="transport", file=path, line=line)
-            .build()]
+        return [
+            builder.location(path, line)
+            .confidence(0.75)
+            .fact(
+                rule_id="CAP-01",
+                match="app.listen without localhost bind",
+                field="transport",
+                file=path,
+                line=line,
+            )
+            .build()
+        ]
 
     def _check_parameter_exfil(self, path: str, content: str) -> list[Finding]:
         if not _STRUCTURED_CONTENT.search(content):
@@ -105,7 +113,8 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
                 analyzer=self.name,
                 title="Tool result duplicates sensitive data across text and structuredContent",
                 description=(
-                    "structuredContent duplication may expose sensitive fields on a second channel (FS-07 / MEM-08)."
+                    "structuredContent duplication may expose sensitive fields "
+                    "on a second channel (FS-07 / MEM-08)."
                 ),
                 severity=Severity.MEDIUM,
                 recommendation="Avoid duplicating sensitive tool output in both text and structuredContent.",
@@ -117,9 +126,18 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
             file=path,
             line=line,
         )
-        return [builder.location(path, line).confidence(0.6)
-            .fact(rule_id="FS-07", match="structuredContent duplication", field="tool_result", file=path, line=line)
-            .build()]
+        return [
+            builder.location(path, line)
+            .confidence(0.6)
+            .fact(
+                rule_id="FS-07",
+                match="structuredContent duplication",
+                field="tool_result",
+                file=path,
+                line=line,
+            )
+            .build()
+        ]
 
     def _check_memory_poisoning(self, path: str, content: str) -> list[Finding]:
         if not _MEMORY_WRITE.search(content):
@@ -147,9 +165,12 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
             file=path,
             line=line,
         )
-        return [builder.location(path, line).confidence(0.55)
+        return [
+            builder.location(path, line)
+            .confidence(0.55)
             .fact(rule_id="MEM-05", match="memory write surface", field="handler", file=path, line=line)
-            .build()]
+            .build()
+        ]
 
     def _check_memory_implant(self, path: str, content: str) -> list[Finding]:
         if not _MEMORY_WRITE.search(content):
@@ -191,10 +212,13 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
                 analyzer=self.name,
                 title="Conditional tool registration after client initialize",
                 description=(
-                    "registerConditionalTools defers tool registration until client capabilities are known (TASK-05)."
+                    "registerConditionalTools defers tool registration until "
+                    "client capabilities are known (TASK-05)."
                 ),
                 severity=Severity.LOW,
-                recommendation="Ensure conditional tools are included in security review and static discovery.",
+                recommendation=(
+                    "Ensure conditional tools are included in security review and static discovery."
+                ),
             ),
             surface="tool",
             rule_id="TASK-05",
@@ -203,9 +227,18 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
             file=path,
             line=line,
         )
-        return [builder.location(path, line).confidence(0.9)
-            .fact(rule_id="TASK-05", match="registerConditionalTools", field="registration", file=path, line=line)
-            .build()]
+        return [
+            builder.location(path, line)
+            .confidence(0.9)
+            .fact(
+                rule_id="TASK-05",
+                match="registerConditionalTools",
+                field="registration",
+                file=path,
+                line=line,
+            )
+            .build()
+        ]
 
     def _check_git_scoping(self, path: str, content: str, server: MCPServerInfo) -> list[Finding]:
         if "mcp_server_git" not in path and "git" not in Path(path).parts:
@@ -238,9 +271,18 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
                 file=path,
                 line=line,
             )
-            return [builder.location(path, line).confidence(0.85)
-                .fact(rule_id="AUTH-01", match="allowed_repository is None early return", field="scoping", file=path, line=line)
-                .build()]
+            return [
+                builder.location(path, line)
+                .confidence(0.85)
+                .fact(
+                    rule_id="AUTH-01",
+                    match="allowed_repository is None early return",
+                    field="scoping",
+                    file=path,
+                    line=line,
+                )
+                .build()
+            ]
         return []
 
 

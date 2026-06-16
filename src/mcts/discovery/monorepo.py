@@ -10,12 +10,10 @@ from pathlib import Path
 from mcts.core.config import ScanConfig
 from mcts.core.target import ScanTarget
 from mcts.discovery.instruction_files import discover_instruction_surfaces
-from mcts.discovery.static import StaticDiscovery
-from mcts.discovery.static_js import JsStaticDiscovery
+from mcts.discovery.static import StaticDiscovery, parse_python_tools_from_content
+from mcts.discovery.static_js import JsStaticDiscovery, parse_js_tools_from_content
 from mcts.discovery.static_merge import merge_static_server_info
-from mcts.discovery.static import parse_python_tools_from_content
-from mcts.discovery.static_js import parse_js_tools_from_content
-from mcts.mcp.models import MCPServerInfo, MCPPrompt, MCPTool
+from mcts.mcp.models import MCPPrompt, MCPServerInfo, MCPTool
 
 SURFACE_GLOBS = [
     "**/index.ts",
@@ -35,7 +33,10 @@ TEST_SURFACE_GLOBS = [
     "**/test_*.py",
 ]
 
-README_MCP_BLOCK = re.compile(r"```(?:json|mcp)?\s*\n(\{[\s\S]*?\"mcpServers\"[\s\S]*?\})\s*```", re.MULTILINE)
+README_MCP_BLOCK = re.compile(
+    r"```(?:json|mcp)?\s*\n(\{[\s\S]*?\"mcpServers\"[\s\S]*?\})\s*```",
+    re.MULTILINE,
+)
 
 PACKAGE_MARKERS = ("package.json", "pyproject.toml")
 
@@ -90,7 +91,10 @@ def expand_static_surface(pkg_root: Path, config: ScanConfig) -> MCPServerInfo:
         parts.append(JsStaticDiscovery(pkg_config).discover())
     parts.append(discover_instruction_surfaces(pkg_config))
 
-    base = merge_static_server_info(*parts) if parts else MCPServerInfo(name=pkg_root.name, discovery_mode="empty")
+    if not parts:
+        base = MCPServerInfo(name=pkg_root.name, discovery_mode="empty")
+    else:
+        base = merge_static_server_info(*parts)
 
     if _full_surface(config):
         surface_files = collect_surface_files(pkg_root, config)

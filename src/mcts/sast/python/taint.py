@@ -117,9 +117,12 @@ def _call_sink_name(func: ast.AST) -> str | None:
                 return "http_client"
             if isinstance(func.value, ast.Name):
                 return "http_client"
-        if isinstance(func.value, ast.Attribute) and func.value.attr == "AsyncClient":
-            if func.attr in NETWORK_ATTRS:
-                return "http_client"
+        if (
+            isinstance(func.value, ast.Attribute)
+            and func.value.attr == "AsyncClient"
+            and func.attr in NETWORK_ATTRS
+        ):
+            return "http_client"
         if isinstance(func.value, ast.Name) and func.value.id == "httpx" and func.attr in NETWORK_ATTRS:
             return "http_client"
         if func.attr == "from_string":

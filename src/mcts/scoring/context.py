@@ -18,7 +18,7 @@ from mcts.scoring.weights import load_weights, weights_hash
 def scorable_findings_v2(findings: list[Finding]) -> list[Finding]:
     from mcts.scoring.engine import NON_SCORING_ANALYZERS
 
-    excluded = NON_SCORING_ANALYZERS | frozenset({"attack_chains"})
+    excluded = NON_SCORING_ANALYZERS | frozenset({"attack_chains", "attack_graph"})
     return [f for f in findings if f.analyzer not in excluded]
 
 

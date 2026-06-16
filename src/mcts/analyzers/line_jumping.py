@@ -154,7 +154,18 @@ class LineJumpingAnalyzer(BaseAnalyzer):
         return [self._tag_finding(f) for f in findings]
 
     def _tag_finding(self, finding: Finding) -> Finding:
-        if finding.id.startswith("pois-") or finding.evidence.get("type") == "permission_escalation":
+        evidence = finding.evidence or {}
+        rule_id = str(evidence.get("rule_id") or "")
+        if not rule_id:
+            for fact in evidence.get("facts") or []:
+                if isinstance(fact, dict) and (rid := fact.get("rule_id")):
+                    rule_id = str(rid)
+                    break
+        if (
+            finding.id.startswith("pois-")
+            or evidence.get("type") == "permission_escalation"
+            or rule_id == "POIS-01"
+        ):
             return tag_pois_finding(finding)
         return finding
 

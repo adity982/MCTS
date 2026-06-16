@@ -8,7 +8,7 @@ from mcts.analyzers.base import BaseAnalyzer
 from mcts.analyzers.finding_facts import build_analyzer_finding
 from mcts.mcp.models import MCPServerInfo
 from mcts.reporting.models import Finding, Severity, SourceLocation
-from mcts.scoring.evidence_tags import tag_data_leakage_finding
+from mcts.scoring.evidence_tags import tag_data_leakage_finding, tag_pois_finding
 
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str], Severity]] = [
     ("OpenAI API Key", re.compile(r"sk-[A-Za-z0-9]{20,}"), Severity.CRITICAL),
@@ -69,6 +69,16 @@ def _is_logging_statement(line: str) -> bool:
     return bool(LOGGING_CALL_PATTERN.search(line))
 
 
+def _finding_rule_id(finding: Finding) -> str:
+    evidence = finding.evidence or {}
+    if rid := evidence.get("rule_id"):
+        return str(rid)
+    for fact in evidence.get("facts") or []:
+        if isinstance(fact, dict) and (rid := fact.get("rule_id")):
+            return str(rid)
+    return ""
+
+
 class DataLeakageAnalyzer(BaseAnalyzer):
     """Scans tool metadata and source files for exposed secrets."""
 
@@ -80,7 +90,13 @@ class DataLeakageAnalyzer(BaseAnalyzer):
         findings.extend(self._scan_source_files(server))
         findings.extend(self._scan_env_dump(server))
         findings.extend(self._scan_error_disclosure(server))
-        return [tag_data_leakage_finding(f) for f in findings]
+        tagged: list[Finding] = []
+        for finding in findings:
+            if _finding_rule_id(finding) == "POIS-05":
+                tagged.append(tag_pois_finding(finding))
+            else:
+                tagged.append(tag_data_leakage_finding(finding))
+        return tagged
 
     def _scan_metadata(self, server: MCPServerInfo) -> list[Finding]:
         findings: list[Finding] = []

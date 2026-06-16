@@ -1,0 +1,27 @@
+id: MEMORY_POISON
+title: Memory poison then read into context
+severity: high
+finding_class: security
+min_confidence: 0.6
+min_reachability: 0.25
+max_depth: 6
+exploit_cost: 4
+anchor:
+  first_edge: WRITES
+layers:
+  - dataflow
+  - trust_boundary
+edge_pattern:
+  - kinds:
+      - WRITES
+      - PERSISTS
+  - kind: READS
+  - kind: DELIVERS_TO_CONTEXT
+    to: sink:model_context
+explanation_steps:
+  - "Tool writes or persists untrusted observations to shared memory."
+  - "Later read surfaces poisoned content."
+  - "Read output is delivered to model context."
+recommended_fixes:
+  - cap_memory_writes
+  - trust_model_documentation

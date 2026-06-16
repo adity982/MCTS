@@ -154,6 +154,10 @@ def canonical_attack_graph_from_scan(
     tools: list[Any],
 ) -> dict[str, Any]:
     """Pre-report entry — canonicalize once inside build_scoring_context()."""
+    if raw_graph.get("version", 0) >= 3:
+        if raw_graph.get("paths") is not None:
+            return raw_graph
+        return {**raw_graph, "paths": raw_graph.get("paths") or []}
     if raw_graph.get("paths"):
         return raw_graph
     if raw_graph.get("edges") or raw_graph.get("nodes"):

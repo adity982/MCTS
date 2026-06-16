@@ -1,0 +1,35 @@
+id: HTTP_TAKEOVER
+title: Unauthenticated HTTP exposes env-reading tool
+severity: critical
+finding_class: security
+min_confidence: 0.6
+min_reachability: 0.25
+max_depth: 6
+exploit_cost: 1
+anchor:
+  first_edge: EXPOSES
+layers:
+  - transport
+  - dataflow
+  - trust_boundary
+edge_pattern:
+  - kind: EXPOSES
+    to_kind: tool
+  - kind: READS
+    from_kind: tool
+    to: sink:env
+  - kind: DELIVERS_TO_CONTEXT
+    to: sink:model_context
+node_filters:
+  tool_name_contains:
+    - env
+    - get-env
+explanation_steps:
+  - "HTTP transport exposes tool surface without authentication."
+  - "Exposed tool reads process environment."
+  - "Tool output is delivered to model context."
+recommended_fixes:
+  - add_http_auth
+  - disable_http_transport
+  - remove_env_tool
+  - bind_localhost_only

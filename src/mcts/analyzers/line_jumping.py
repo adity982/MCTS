@@ -145,6 +145,8 @@ class LineJumpingAnalyzer(BaseAnalyzer):
         findings: list[Finding] = []
         for surface in scan_surfaces(server):
             text = surface.all_text()
+            if _is_whitelisted_surface(surface, server):
+                continue
             if detect_line_jumping(text, context_position=0):
                 findings.append(self._line_jump_finding(surface, text))
             elif _detect_permission_escalation(text):
@@ -205,3 +207,13 @@ class LineJumpingAnalyzer(BaseAnalyzer):
 def _detect_permission_escalation(content: str) -> bool:
     lowered = content.lower()
     return any(pattern in lowered for pattern in PERMISSION_ESCALATION)
+
+
+def _is_whitelisted_surface(surface, server: MCPServerInfo) -> bool:
+    """Whitelist known reference instruction files (Phase 2 Step 2.1)."""
+    from mcts.analyzers.reference_tier import is_demo_reference_server
+
+    if not is_demo_reference_server(server):
+        return False
+    label = getattr(surface, "label", "") or ""
+    return "instructions.md" in label.lower() or label.endswith("everything/instructions.md")

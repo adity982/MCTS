@@ -1,0 +1,6 @@
+{
+  "servers_path": "src/git",
+  "package_depth": "full",
+  "required_rule_ids": ["CFG-01"],
+  "required_analyzers_any": ["mcp_config_audit"]
+}

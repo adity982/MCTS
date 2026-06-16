@@ -1,0 +1,7 @@
+{
+  "servers_path": "src/filesystem/index.ts",
+  "package_depth": "full",
+  "required_rule_ids": ["FS-01"],
+  "required_analyzers_any": ["filesystem_abuse"],
+  "note": "R-18 — read_multiple_files without max paths bound"
+}

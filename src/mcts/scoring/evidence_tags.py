@@ -216,6 +216,67 @@ def tag_pois_finding(finding: Finding) -> Finding:
     return finding.model_copy(update={"evidence": evidence, "confidence": confidence})
 
 
+V2_ANNOTATION_HONESTY = {
+    "exploitability_class": "metadata",
+    "reachability_tag": "default",
+    "threat_maturity": "default",
+}
+V2_DUAL_SURFACE = {
+    "exploitability_class": "dual_surface_bypass",
+    "reachability_tag": "default",
+    "threat_maturity": "default",
+}
+V2_DEPLOYMENT = {"exploitability_class": "hygiene", "reachability_tag": "default"}
+V2_SURFACE_ABUSE = {"exploitability_class": "capability_abuse", "reachability_tag": "default"}
+V2_FILESYSTEM = {"exploitability_class": "path_abuse", "reachability_tag": "default"}
+V2_SYM = {"exploitability_class": "toctou", "reachability_tag": "default"}
+V2_RESOURCE_LIMITS = {"exploitability_class": "dos", "reachability_tag": "default"}
+V2_LOGIC_BUGS = {"exploitability_class": "logic_bug", "reachability_tag": "default"}
+V2_MCP_CONFIG = {"exploitability_class": "hygiene", "reachability_tag": "default"}
+
+
+def _tag_reliability(finding: Finding, tags: dict[str, Any]) -> Finding:
+    evidence = merge_evidence(finding.evidence, tags)
+    confidence = max(finding.confidence or 0.0, 0.65)
+    return finding.model_copy(update={"evidence": evidence, "confidence": confidence})
+
+
+def tag_annotation_honesty_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_ANNOTATION_HONESTY)
+
+
+def tag_dual_surface_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_DUAL_SURFACE)
+
+
+def tag_deployment_defaults_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_DEPLOYMENT)
+
+
+def tag_surface_abuse_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_SURFACE_ABUSE)
+
+
+def tag_filesystem_abuse_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_FILESYSTEM)
+
+
+def tag_sym_toctou_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_SYM)
+
+
+def tag_resource_limits_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_RESOURCE_LIMITS)
+
+
+def tag_logic_bugs_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_LOGIC_BUGS)
+
+
+def tag_mcp_config_audit_finding(finding: Finding) -> Finding:
+    return _tag_reliability(finding, V2_MCP_CONFIG)
+
+
 def tag_attack_chain_finding(finding: Finding) -> Finding:
     evidence = merge_evidence(
         finding.evidence,

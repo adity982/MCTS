@@ -1,0 +1,7 @@
+{
+  "servers_path": "src/everything/resources/subscriptions.ts",
+  "package_depth": "full",
+  "required_rule_ids": ["RES-01"],
+  "required_analyzers_any": ["resources_abuse"],
+  "note": "R-17 — resource subscription handler without rate limits"
+}

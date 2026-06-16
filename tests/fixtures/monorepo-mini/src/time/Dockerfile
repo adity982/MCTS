@@ -1,2 +1,3 @@
 FROM python:3.12-slim
-ENTRYPOINT ["mcp-server-time", "--local-timezone", "UTC"]
+ENV LOCAL_TIMEZONE=${LOCAL_TIMEZONE:-"UTC"}
+ENTRYPOINT ["mcp-server-time", "--local-timezone", "${LOCAL_TIMEZONE}"]

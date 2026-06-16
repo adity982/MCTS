@@ -1,0 +1,6 @@
+{
+  "servers_path": "src/filesystem/__tests__/path-validation.test.ts",
+  "package_depth": "full",
+  "required_rule_ids": ["SYM-01"],
+  "required_analyzers_any": ["sym_toctou"]
+}

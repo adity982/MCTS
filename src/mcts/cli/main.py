@@ -485,6 +485,34 @@ def scan(
             ),
         ),
     ] = None,
+    monorepo: Annotated[
+        bool,
+        typer.Option(
+            "--monorepo",
+            help="Discover all MCP packages under src/*/ (package.json or pyproject.toml)",
+        ),
+    ] = False,
+    surface_depth: Annotated[
+        str | None,
+        typer.Option(
+            "--surface-depth",
+            help="Surface discovery depth: entrypoint (default) or full (tools, transports, prompts, …)",
+        ),
+    ] = None,
+    package_depth: Annotated[
+        str | None,
+        typer.Option(
+            "--package-depth",
+            help="Per-package discovery depth: entrypoint or full (alias for --surface-depth on one package)",
+        ),
+    ] = None,
+    aggregate: Annotated[
+        bool,
+        typer.Option(
+            "--aggregate",
+            help="Merge monorepo package findings into one report",
+        ),
+    ] = False,
     baseline: Annotated[
         Path | None,
         typer.Option("--baseline", help="Compare tool metadata against a saved baseline JSON"),
@@ -891,6 +919,9 @@ def scan(
         from mcts.discovery.language_detect import resolve_default_languages
 
         language_list = resolve_default_languages(Path(scan_target))
+    surface_depth_norm = (surface_depth or "").strip().lower() or None
+    package_depth_norm = (package_depth or "").strip().lower() or None
+    include_test_surfaces = surface_depth_norm == "full" or package_depth_norm == "full"
     surface_list = (
         [part.strip() for part in surfaces.split(",") if part.strip()]
         if surfaces
@@ -1055,6 +1086,11 @@ def scan(
         corpus_stats_path=corpus_stats_path,
         assets_path=assets_path,
         max_json_findings=max_json_findings,
+        monorepo=monorepo,
+        surface_depth=surface_depth_norm,
+        package_depth=package_depth_norm,
+        aggregate=aggregate or monorepo,
+        include_test_surfaces=include_test_surfaces,
     )
 
     try:

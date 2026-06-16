@@ -31,6 +31,7 @@ from mcts.analyzers.semgrep_adapter import SemgrepAdapterAnalyzer
 from mcts.analyzers.sigma_dedupe import dedupe_sigma_findings
 from mcts.analyzers.sigma_metadata import SigmaMetadataAnalyzer
 from mcts.analyzers.skill_md import SkillMdAnalyzer
+from mcts.analyzers.static_signals import StaticSignalsAnalyzer
 from mcts.analyzers.supply_chain import SupplyChainAnalyzer
 from mcts.analyzers.surface_metadata import SurfaceMetadataAnalyzer
 from mcts.analyzers.tool_abuse import ToolAbuseAnalyzer
@@ -110,6 +111,7 @@ class Scanner:
         rows.append(SkillMdAnalyzer())
         if cfg.enable_behavioral_static:
             rows.append(BehavioralStaticAnalyzer())
+        rows.append(StaticSignalsAnalyzer())
         if cfg.pip_audit:
             rows.append(VulnerablePackageAnalyzer(target=cfg.target))
         if cfg.npm_audit:

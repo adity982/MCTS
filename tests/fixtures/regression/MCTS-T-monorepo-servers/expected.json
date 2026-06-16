@@ -1,0 +1,6 @@
+{
+  "min_tools": 10,
+  "min_source_files": 20,
+  "required_analyzers_any": ["behavioral_static", "static_signals", "supply_chain"],
+  "note": "Full monorepo aggregate scan — R-21 regression fixture"
+}

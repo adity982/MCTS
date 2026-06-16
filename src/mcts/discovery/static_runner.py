@@ -5,6 +5,7 @@ from __future__ import annotations
 from mcts.core.config import ScanConfig
 from mcts.core.target import ScanTarget, TargetKind
 from mcts.discovery.instruction_files import MARKDOWN_SUFFIXES, discover_instruction_surfaces
+from mcts.discovery.monorepo import discover_monorepo, expand_static_surface
 from mcts.discovery.static import StaticDiscovery
 from mcts.discovery.static_go import GO_EXTENSIONS, GoStaticDiscovery
 from mcts.discovery.static_js import JS_EXTENSIONS, JsStaticDiscovery
@@ -15,8 +16,15 @@ from mcts.mcp.models import MCPServerInfo
 
 def discover_static(config: ScanConfig) -> MCPServerInfo:
     """Run static discovery for all languages enabled in config."""
+    if config.monorepo:
+        return discover_monorepo(config)
+
     target = ScanTarget(config.target)
     langs = {language.lower() for language in config.languages}
+
+    depth = (config.surface_depth or config.package_depth or "").lower()
+    if depth == "full" and target.kind == TargetKind.DIRECTORY:
+        return expand_static_surface(target.path, config)
 
     if target.kind == TargetKind.FILE:
         suffix = target.path.suffix.lower()

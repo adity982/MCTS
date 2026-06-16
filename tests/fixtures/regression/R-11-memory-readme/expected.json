@@ -1,0 +1,6 @@
+{
+  "servers_path": "src/memory",
+  "package_depth": "full",
+  "required_rule_ids": ["MEM-01"],
+  "required_analyzers_any": ["memory_persistence"]
+}

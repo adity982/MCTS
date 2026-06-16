@@ -5,17 +5,27 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from mcts import __version__
+from mcts.analyzers.annotation_honesty import AnnotationHonestyAnalyzer
 from mcts.analyzers.attack_chains import AttackChainAnalyzer
 from mcts.analyzers.behavioral_static import BehavioralStaticAnalyzer
 from mcts.analyzers.cloud_inspect import CloudInspectAnalyzer
 from mcts.analyzers.command_execution import CommandExecutionAnalyzer
+from mcts.analyzers.context_memory_implant import ContextMemoryImplantAnalyzer
 from mcts.analyzers.cross_server import CrossServerAnalyzer
 from mcts.analyzers.data_leakage import DataLeakageAnalyzer
+from mcts.analyzers.deployment_defaults import DeploymentDefaultsAnalyzer
+from mcts.analyzers.dual_surface import DualSurfaceAnalyzer
 from mcts.analyzers.embedding_secrets import EmbeddingSecretsAnalyzer
+from mcts.analyzers.filesystem_abuse import FilesystemAbuseAnalyzer
+from mcts.analyzers.instructions_analyzer import InstructionsAnalyzer
 from mcts.analyzers.jailbreak import JailbreakAnalyzer
 from mcts.analyzers.line_jumping import LineJumpingAnalyzer
 from mcts.analyzers.llm_judge import LlmJudgeAnalyzer
 from mcts.analyzers.llm_metadata_triage import LlmMetadataTriageAnalyzer
+from mcts.analyzers.logging_abuse import LoggingAbuseAnalyzer
+from mcts.analyzers.logic_bugs import LogicBugsAnalyzer
+from mcts.analyzers.mcp_config_audit import McpConfigAuditAnalyzer
+from mcts.analyzers.memory_persistence import MemoryPersistenceAnalyzer
 from mcts.analyzers.metadata_dedupe import dedupe_metadata_findings
 from mcts.analyzers.metadata_diff import MetadataDiffAnalyzer, save_baseline
 from mcts.analyzers.metadata_integrity import MetadataIntegrityAnalyzer
@@ -26,16 +36,21 @@ from mcts.analyzers.path_validation import PathValidationAnalyzer
 from mcts.analyzers.permissions import PermissionAnalyzer
 from mcts.analyzers.prompt_defense import PromptDefenseAnalyzer
 from mcts.analyzers.prompt_injection import PromptInjectionAnalyzer
+from mcts.analyzers.resource_limits import ResourceLimitsAnalyzer
+from mcts.analyzers.resources_abuse import ResourcesAbuseAnalyzer
 from mcts.analyzers.runtime_events import RuntimeEventsAnalyzer
 from mcts.analyzers.schema_surface import SchemaSurfaceAnalyzer
 from mcts.analyzers.scoping import ScopingAnalyzer
 from mcts.analyzers.semgrep_adapter import SemgrepAdapterAnalyzer
+from mcts.analyzers.shared_memory_poisoning import SharedMemoryPoisoningAnalyzer
 from mcts.analyzers.sigma_dedupe import dedupe_sigma_findings
 from mcts.analyzers.sigma_metadata import SigmaMetadataAnalyzer
 from mcts.analyzers.skill_md import SkillMdAnalyzer
 from mcts.analyzers.static_signals import StaticSignalsAnalyzer
 from mcts.analyzers.supply_chain import SupplyChainAnalyzer
 from mcts.analyzers.surface_metadata import SurfaceMetadataAnalyzer
+from mcts.analyzers.sym_toctou import SymToctouAnalyzer
+from mcts.analyzers.tasks_abuse import TasksAbuseAnalyzer
 from mcts.analyzers.tool_abuse import ToolAbuseAnalyzer
 from mcts.analyzers.tool_shadowing import ToolShadowingAnalyzer
 from mcts.analyzers.toxic_flows import ToxicFlowAnalyzer
@@ -98,6 +113,21 @@ class Scanner:
             NetworkEgressAnalyzer(),
             TransportExposureAnalyzer(),
             ScopingAnalyzer(),
+            AnnotationHonestyAnalyzer(),
+            DualSurfaceAnalyzer(),
+            DeploymentDefaultsAnalyzer(),
+            McpConfigAuditAnalyzer(),
+            InstructionsAnalyzer(),
+            MemoryPersistenceAnalyzer(),
+            SharedMemoryPoisoningAnalyzer(),
+            ContextMemoryImplantAnalyzer(),
+            TasksAbuseAnalyzer(),
+            ResourcesAbuseAnalyzer(),
+            LoggingAbuseAnalyzer(),
+            FilesystemAbuseAnalyzer(),
+            ResourceLimitsAnalyzer(),
+            LogicBugsAnalyzer(),
+            SymToctouAnalyzer(),
             RuntimeEventsAnalyzer(),
             SigmaMetadataAnalyzer(sigma_rules_path=cfg.sigma_rules_path),
             OAuthConfigAnalyzer(target=cfg.target, inventory=self.inventory),
@@ -260,6 +290,14 @@ class Scanner:
         analyzers_executed.append("compliance")
         scan_notes = build_scan_notes(self.config)
         scan_notes = scan_notes_pre + scan_notes
+        from mcts.report.scan_meta import static_live_gap_notice
+
+        live_gap = static_live_gap_notice(
+            live=self.config.live,
+            remote_url=self.config.remote_url,
+        )
+        if live_gap:
+            scan_notes.append(live_gap)
 
         use_display_score = self.config.findings_trust_mode == "enforce"
         score = self.scoring.score(findings, use_display=use_display_score)

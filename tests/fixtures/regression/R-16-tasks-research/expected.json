@@ -1,0 +1,7 @@
+{
+  "servers_path": "src/everything/tools/simulate-research-query.ts",
+  "package_depth": "full",
+  "required_rule_ids": ["TASK-01", "TASK-02"],
+  "required_analyzers_any": ["tasks_abuse"],
+  "note": "R-16 — simulate-research-query task-based tool patterns"
+}

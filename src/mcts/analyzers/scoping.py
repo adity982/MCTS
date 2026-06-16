@@ -30,6 +30,7 @@ _ALLOWLIST_IN_ERROR = re.compile(r"raise\s+\w+Error\([^)]*allowed", re.IGNORECAS
 _CLI_FLAGS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     ("DUAL-03", re.compile(r"--ignore-robots-txt"), "ignore-robots-txt bypasses robots policy"),
     ("NET-05", re.compile(r"--proxy-url"), "proxy-url enables attacker-influenced egress"),
+    ("FETCH-04", re.compile(r"--custom-user-agent"), "custom user-agent flag on fetch server"),
     ("DUAL-03", re.compile(r"--allow-all-hosts"), "allow-all-hosts disables egress restrictions"),
     ("DUAL-03", re.compile(r"--no-sandbox"), "no-sandbox weakens execution isolation"),
 )
@@ -56,6 +57,7 @@ class ScopingAnalyzer(BaseAnalyzer):
             if not content or path.endswith("#mcp-block"):
                 continue
             findings.extend(self._check_git(path, content, cli_sources))
+            findings.extend(self._check_git_depth(path, content))
             findings.extend(self._check_docker(path, content))
             findings.extend(self._check_filesystem(path, content))
             findings.extend(self._check_allowlist_leak(path, content))
@@ -94,6 +96,38 @@ class ScopingAnalyzer(BaseAnalyzer):
                 confidence=0.85,
             )
         ]
+
+    def _check_git_depth(self, path: str, content: str) -> list[Finding]:
+        """GIT-04 — write/checkout tools without scope emphasis (Phase 2 Step 2.9d)."""
+        if "git" not in path and "mcp_server_git" not in path:
+            return []
+        findings: list[Finding] = []
+        if re.search(r"git_checkout|git_create_branch", content) and "allowed_repository" not in content:
+            findings.append(
+                _auth_finding(
+                    rule_id="GIT-04",
+                    title="Git checkout/branch without repository scope emphasis",
+                    description="Branch/checkout tools should enforce allowed_repository scoping.",
+                    severity=Severity.MEDIUM,
+                    file=path,
+                    line=_line_no(content, re.compile(r"git_checkout|git_create_branch")),
+                    confidence=0.55,
+                )
+            )
+        if re.search(r"git_commit", content) and "commit_message" in content:
+            findings.append(
+                _auth_finding(
+                    rule_id="GIT-03",
+                    title="Attacker-controlled git commit messages",
+                    description="Commit message content is user-controlled (informational).",
+                    severity=Severity.LOW,
+                    file=path,
+                    line=_line_no(content, re.compile(r"git_commit")),
+                    confidence=0.4,
+                    finding_class="informational",
+                )
+            )
+        return findings
 
     def _check_docker(self, path: str, content: str) -> list[Finding]:
         if "Dockerfile" not in Path(path).name:

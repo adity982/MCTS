@@ -1,0 +1,7 @@
+{
+  "servers_path": "src/memory/index.ts",
+  "package_depth": "full",
+  "required_rule_ids": ["MEM-05"],
+  "required_analyzers_any": ["shared_memory_poisoning"],
+  "note": "R-19 — create_entities memory write surface for graph WRITES edges"
+}

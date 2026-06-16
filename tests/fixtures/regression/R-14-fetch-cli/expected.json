@@ -2,6 +2,6 @@
   "servers_path": "src/fetch",
   "package_depth": "full",
   "required_rule_ids": ["DUAL-03"],
-  "optional_rule_ids": ["NET-05"],
+  "optional_rule_ids": ["NET-05", "FETCH-04"],
   "note": "R-14 — fetch CLI --ignore-robots-txt with network package context"
 }

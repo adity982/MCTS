@@ -47,9 +47,7 @@ def test_resource_nodes_seeded_from_writes() -> None:
     )
     apply_policy_edges(graph, __import__("mcts.mcp.models", fromlist=["MCPServerInfo"]).MCPServerInfo(), [])
     assert graph.get_node("resource:session/staged") is not None
-    readable = [
-        e for e in graph.edges.values() if e.kind == EdgeKind.RESOURCE_READABLE_BY_CONTEXT
-    ]
+    readable = [e for e in graph.edges.values() if e.kind == EdgeKind.RESOURCE_READABLE_BY_CONTEXT]
     assert readable
     assert readable[0].to_node == "sink:model_context"
 

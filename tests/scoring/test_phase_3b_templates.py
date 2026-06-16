@@ -35,11 +35,7 @@ def test_resource_access_probability() -> None:
         )
     )
     apply_policy_edges(graph, MCPServerInfo(), [])
-    readable = [
-        e
-        for e in graph.edges.values()
-        if e.kind == EdgeKind.RESOURCE_READABLE_BY_CONTEXT
-    ]
+    readable = [e for e in graph.edges.values() if e.kind == EdgeKind.RESOURCE_READABLE_BY_CONTEXT]
     assert readable
     edge = readable[0]
     assert edge.reachability == DEFAULT_RESOURCE_ACCESS_PROBABILITY

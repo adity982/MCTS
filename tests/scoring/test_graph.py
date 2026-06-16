@@ -10,7 +10,7 @@ from mcts.scoring.graph import build_paths, canonical_attack_graph
 def test_build_paths_rejects_disconnected_tools() -> None:
     finding = Finding(
         id="chain-read-exfil",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         title="Read exfil",
         description="d",
         severity=Severity.CRITICAL,
@@ -39,7 +39,7 @@ def test_canonical_graph_builds_paths_when_edges_only() -> None:
         findings=[
             Finding(
                 id="chain-read-exfil",
-                analyzer="attack_chains",
+                analyzer="attack_graph",
                 title="Read exfil",
                 description="d",
                 severity=Severity.CRITICAL,

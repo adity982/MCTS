@@ -152,15 +152,14 @@ class ScanConfig(BaseModel):
     package_depth: str | None = None
     aggregate: bool = False
     include_test_surfaces: bool = False
-    # Attack graph v3 (Phase 3a) — opt-in via attack_graph_version=3
-    attack_graph_version: int = Field(default=2, ge=1, le=3)
+    # Attack graph v3 (Phase 3a rollout — default v3)
+    attack_graph_version: int = Field(default=3, ge=1, le=3)
     attack_graph_max_depth: int = Field(default=6, ge=2, le=12)
     attack_graph_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     attack_graph_confidence_mode: str = "geometric_mean"
     attack_graph_include_overlap_chains: bool = False
     attack_graph_enable_counterfactuals: bool = False
     attack_graph_compress_for_ui: bool = False
-    attack_graph_legacy_chains: bool = False
 
     @classmethod
     def _validate_min_evidence_strength(cls, value: str | None) -> str | None:

@@ -1,0 +1,25 @@
+id: GIT_UNSCOPED
+title: Unscoped git read reaches model context
+severity: high
+finding_class: security
+min_confidence: 0.55
+min_reachability: 0.25
+max_depth: 5
+exploit_cost: 2
+anchor:
+  first_edge: READS
+layers:
+  - dataflow
+edge_pattern:
+  - kind: READS
+    from_kind: tool
+  - kind: DELIVERS_TO_CONTEXT
+    to: sink:model_context
+node_filters:
+  tool_name_prefix: ["git"]
+recommended_fixes:
+  - scope_git_tools
+  - add_repo_allowlist
+explanation_steps:
+  - "Git tool reads repository content without strict scoping."
+  - "Tool output is delivered automatically to model context."

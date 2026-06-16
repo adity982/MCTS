@@ -29,10 +29,10 @@ def test_recommendations_use_display_priority_for_overlap_chains() -> None:
 def test_dashboard_payload_analyzer_counts_use_display_severity() -> None:
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="enforce")).run()
     payload = build_dashboard_payload(report)
-    attack = next(a for a in payload["analyzers"] if a["name"] == "attack_chains")
+    attack = next(a for a in payload["analyzers"] if a["name"] == "attack_graph")
     assert attack["severity_counts"]["critical"] == 0
     assert attack["severity_counts"]["medium"] >= 2
     assert payload["display_summary"]["critical"] == 0
-    chain_rows = [f for f in payload["findings"] if f["analyzer"] == "attack_chains"]
+    chain_rows = [f for f in payload["findings"] if f["analyzer"] == "attack_graph"]
     assert all(row["severity"] == "medium" for row in chain_rows)
     assert all(row["template_severity"] == "critical" for row in chain_rows)

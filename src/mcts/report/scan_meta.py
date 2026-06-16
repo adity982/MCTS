@@ -101,15 +101,14 @@ def tool_discovery_context(report: ScanReport, *, live: bool, snapshot: bool) ->
 def append_chain_scan_notes(scan_notes: list[str], report: ScanReport, config: ScanConfig) -> None:
     if config.scoring_mode == "legacy":
         return
-    if "attack_chains" in report.analyzers_executed:
-        if not config.enable_attack_chains:
+    if "attack_graph" in report.analyzers_executed or "attack_chains" in report.analyzers_executed:
+        if not config.enable_attack_chains and config.attack_graph_version < 3:
             scan_notes.append(
                 "Chain multiplier disabled (chain_factor=1.0); graph and meta-findings still shown."
             )
         return
     scan_notes.append(
-        "Attack chains analyzer did not run (--analyzers filter or --surfaces without tool) "
-        "— chain_factor=1.0."
+        "Attack graph did not run (--analyzers filter or --surfaces without tool) — chain_factor=1.0."
     )
 
 

@@ -157,9 +157,9 @@ def test_llm_owasp_mappings_includes_gaps(example_server_path: Path) -> None:
 def test_technique_map_full_catalog(example_server_path: Path) -> None:
     report = Scanner(ScanConfig(target=example_server_path)).run()
     technique_map = build_technique_map(report.findings)
-    assert technique_map["total"] == 79
-    assert len(technique_map["techniques"]) == 79
-    assert technique_map["detected_count"] + technique_map["clear_count"] == 79
+    assert technique_map["total"] == 80
+    assert len(technique_map["techniques"]) == 80
+    assert technique_map["detected_count"] + technique_map["clear_count"] == 80
 
 
 def test_capability_matrix_and_technique_map(example_server_path: Path) -> None:
@@ -169,7 +169,7 @@ def test_capability_matrix_and_technique_map(example_server_path: Path) -> None:
     assert "technique_map" in payload
     assert payload["meta"]["scan_scope_label"]
     assert payload["owasp"]["categories"] is not None
-    assert payload["technique_map"]["total"] == 79
+    assert payload["technique_map"]["total"] == 80
 
     matrix = build_capability_matrix(report)
     assert "dimensions" in matrix
@@ -303,7 +303,7 @@ def test_write_html_report_is_self_contained(example_server_path: Path, tmp_path
     assert embedded["checks_summary"]["analyzers_passed"] > 0
     assert any(a["status"] == "passed" for a in embedded["analyzers"])
     assert "owasp_mcp" in embedded
-    assert embedded["technique_map"]["total"] == 79
+    assert embedded["technique_map"]["total"] == 80
     assert embedded["findings"][0]["location"] is not None or embedded["findings"][0]["location"] == "—"
 
 

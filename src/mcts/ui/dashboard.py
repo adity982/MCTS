@@ -21,7 +21,7 @@ OWASP_CATALOG: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("LLM01", "Prompt Injection", ("prompt_injection",)),
     ("LLM02", "Sensitive Information Disclosure", ("data_leakage",)),
     ("LLM04", "Model Denial of Service", ("tool_abuse",)),
-    ("LLM06", "Excessive Agency", ("attack_chains", "permission_analyzer", "compliance")),
+    ("LLM06", "Excessive Agency", ("attack_chains", "attack_graph", "permission_analyzer", "compliance")),
     ("LLM07", "System Prompt Leakage", ("jailbreak",)),
     ("LLM08", "Vector and Embedding Weaknesses", ()),
 )

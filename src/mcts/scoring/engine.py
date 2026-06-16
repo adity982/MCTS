@@ -19,7 +19,7 @@ RISK_WEIGHTS: dict[Severity, int] = {
 RISK_DECAY_SCALE = 50.0
 
 # Meta-findings from compliance checks should not affect scoring.
-NON_SCORING_ANALYZERS = frozenset({"compliance", "attack_graph"})
+NON_SCORING_ANALYZERS = frozenset({"compliance"})
 
 
 class RiskScoringEngine:

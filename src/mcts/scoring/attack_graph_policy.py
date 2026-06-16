@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcts.mcp.models import MCPServerInfo
 from mcts.reporting.models import Finding
 from mcts.scoring.attack_graph import AttackGraph
-from mcts.scoring.attack_graph_models import EdgeKind, GraphLayer, NodeKind, canonical_node_id
+from mcts.scoring.attack_graph_models import EdgeKind, GraphLayer, NodeKind, canonical_node_id, parse_node_id
 
 DEFAULT_RESOURCE_ACCESS_PROBABILITY = 0.3
 
@@ -68,7 +68,20 @@ def seed_server_surfaces(graph: AttackGraph, server: MCPServerInfo) -> None:
         graph.add_node(NodeKind.CAPABILITY, capability, label=capability)
 
 
+def _seed_resource_nodes_from_writes(graph: AttackGraph) -> None:
+    """Ensure resource nodes exist for WRITES targets (static scans lack live resources)."""
+    for edge in graph.edges.values():
+        if edge.kind != EdgeKind.WRITES:
+            continue
+        if not edge.to_node.startswith("resource:"):
+            continue
+        _, local = parse_node_id(edge.to_node)
+        if edge.to_node not in graph.nodes:
+            graph.add_node(NodeKind.RESOURCE, local, label=local)
+
+
 def apply_policy_edges(graph: AttackGraph, server: MCPServerInfo, findings: list[Finding]) -> None:
+    _seed_resource_nodes_from_writes(graph)
     for tool in graph.nodes_of_kind(NodeKind.TOOL):
         graph.add_edge(
             EdgeKind.DELIVERS_TO_CONTEXT,

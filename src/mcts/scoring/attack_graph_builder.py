@@ -10,7 +10,7 @@ from mcts.scoring.attack_graph_models import EdgeKind, canonical_node_id
 from mcts.scoring.attack_graph_policy import apply_policy_edges, seed_server_surfaces
 from mcts.scoring.attack_graph_producers import export_all_edges
 from mcts.scoring.graph_matcher import match_all_templates
-from mcts.scoring.graph_templates import load_mvp_templates
+from mcts.scoring.graph_templates import load_chain_templates
 
 
 class GraphBuilder:
@@ -28,7 +28,7 @@ class GraphBuilder:
         if self.config.attack_graph_include_overlap_chains:
             self._add_corroborated_invokes_edges(graph, server)
         apply_policy_edges(graph, server, findings)
-        templates = load_mvp_templates()
+        templates = load_chain_templates()
         max_depth = self.config.attack_graph_max_depth
         if max_depth > 0:
             templates = [

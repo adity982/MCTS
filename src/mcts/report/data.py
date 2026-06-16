@@ -54,7 +54,7 @@ CATEGORY_DEFS: tuple[tuple[str, str, int, tuple[str, ...]], ...] = (
     ("injection", "Injection & Metadata", 20, ("prompt_injection", "metadata_integrity", "schema_surface")),
     ("execution", "Execution & Path Risk", 15, ("command_execution", "path_validation", "tool_abuse")),
     ("data_leakage", "Data Leakage Risk", 15, ("data_leakage",)),
-    ("attack_chains", "Attack Chain Risk", 15, ("attack_chains",)),
+    ("attack_chains", "Attack Chain Risk", 15, ("attack_chains", "attack_graph")),
     ("shadowing", "Cross-Server Shadowing", 5, ("cross_server",)),
     ("jailbreak", "Jailbreak Resistance", 10, ("jailbreak",)),
 )
@@ -71,6 +71,7 @@ ANALYZER_LABELS: dict[str, str] = {
     "cross_server": "Cross-Server Shadowing",
     "jailbreak": "Jailbreak",
     "attack_chains": "Attack Chains",
+    "attack_graph": "Attack Graph",
     "fuzz": "Protocol Fuzzing",
     "compliance": "Compliance",
     "sigma_metadata": "Sigma Metadata Rules",
@@ -305,9 +306,13 @@ def security_grade(score: int) -> dict[str, str]:
     return {"letter": "F", "label": "Critical", "posture": "Critical"}
 
 
+def _is_chain_analyzer_finding(finding: Finding) -> bool:
+    return finding.analyzer in {"attack_chains", "attack_graph"}
+
+
 def _include_in_executive_heuristics(finding: Finding) -> bool:
     """Exclude overlap-only attack chain meta-findings from alarm heuristics."""
-    return not (finding.analyzer == "attack_chains" and finding.evidence_type == "capability_overlap")
+    return not (_is_chain_analyzer_finding(finding) and finding.evidence_type == "capability_overlap")
 
 
 def build_executive_summary(findings: list[Finding], summary: ScanSummary) -> dict[str, Any]:
@@ -315,11 +320,17 @@ def build_executive_summary(findings: list[Finding], summary: ScanSummary) -> di
     paragraphs: list[str] = []
     bullets: list[str] = []
 
-    chain_findings = [f for f in findings if f.analyzer == "attack_chains"]
+    chain_findings = [f for f in findings if _is_chain_analyzer_finding(f)]
     has_proven = False
     has_overlap = False
     if chain_findings:
-        has_proven = any(f.evidence_type == "graph_path" for f in chain_findings)
+        has_proven = any(
+            f.evidence_type == "graph_path"
+            or bool((f.evidence or {}).get("path_proven"))
+            or bool((f.evidence or {}).get("template_id"))
+            for f in chain_findings
+            if f.evidence_type != "capability_overlap"
+        )
         has_overlap = any(f.evidence_type == "capability_overlap" for f in chain_findings)
         if has_overlap and not has_proven:
             paragraphs.append(
@@ -382,7 +393,7 @@ def build_executive_summary(findings: list[Finding], summary: ScanSummary) -> di
     seen_bullets: set[str] = set()
     suppress_chain_recs = bool(chain_findings) and has_overlap and not has_proven
     for rec in recs:
-        if suppress_chain_recs and rec.get("analyzer") == "attack_chains":
+        if suppress_chain_recs and rec.get("analyzer") in {"attack_chains", "attack_graph"}:
             continue
         text = rec["recommendation"]
         if text not in seen_bullets and len(bullets) < 5:
@@ -1000,8 +1011,9 @@ def build_recommendations(findings: list[Finding]) -> list[dict[str, Any]]:
 
 def build_attack_graph(report: ScanReport) -> dict[str, Any]:
     from mcts.scoring.graph import canonical_attack_graph
+    from mcts.scoring.graph_ui import normalize_attack_graph_for_ui
 
-    return canonical_attack_graph(report)
+    return normalize_attack_graph_for_ui(canonical_attack_graph(report))
 
 
 def _trend_series_key(points: list[dict[str, Any]]) -> str:

@@ -1,0 +1,23 @@
+id: ELICIT_PHISH
+title: URL elicitation can phish the user
+severity: high
+finding_class: security
+min_confidence: 0.55
+min_reachability: 0.3
+max_depth: 3
+exploit_cost: 3
+anchor:
+  first_edge: TRIGGERS
+layers:
+  - trust_boundary
+edge_pattern:
+  - kind: TRIGGERS
+    to_kind: capability
+node_filters:
+  tool_name_contains: ["elicitation", "trigger"]
+recommended_fixes:
+  - disable_elicitation
+  - require_user_confirmation
+explanation_steps:
+  - "Tool can trigger client URL elicitation."
+  - "Attacker may coerce the user to visit a malicious link."

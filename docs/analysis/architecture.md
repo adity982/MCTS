@@ -180,7 +180,7 @@ Optional: `probe_protocol_security()` when `--protocol-probe` + `--url`.
 
 ### 5. Attack graph and scan scope
 
-Before scoring: `attack_graph` (with `paths` when chains ran) and `scan_scope` are set. Under v2/both, `AttackChainAnalyzer` always runs (whitelist/surface bypass).
+Before scoring: `attack_graph` (with `paths` when the graph builder ran) and `scan_scope` are set. With default `attack_graph_version=3`, `GraphBuilder` always runs post-analyzers (whitelist/surface bypass for chain templates).
 
 ### 6. Score and verify
 
@@ -389,9 +389,9 @@ Used by `behavioral_static`. Python AST taint + optional tree-sitter for TS/Go/R
 
 `RuntimeEventsAnalyzer` routes telemetry rows to focused modules (e.g. `rug_pull.py`, `command_injection.py`, `tool_redefinition.py`). Technique mapping: [Threat taxonomy](../reporting/taxonomy.md) and `tests/fixtures/regression/MCTS-T-*/`.
 
-### Attack chains (`capability/`, `analyzers/attack_chains.py`)
+### Attack graph v3 (`scoring/attack_graph_builder.py`, `scoring/templates/`)
 
-`capability/inferrer.py` assigns per-tool flags (`reads_untrusted_input`, `egresses_network`, `executes_commands`, …). BFS finds paths like read → exfiltrate. Graph stored on `ScanReport.attack_graph`.
+`capability/inferrer.py` assigns per-tool flags (`reads_untrusted_input`, `egresses_network`, `executes_commands`, …). `GraphBuilder` merges producer edges, applies policy edges, matches YAML chain templates (e.g. read → exfil, SSRF resource staging, URL elicitation), and stores paths on `ScanReport.attack_graph`.
 
 When `scoring_mode` is `v2` or `both`, paths are built at scan time via `scoring/graph.build_paths()` and stored on the canonical graph:
 

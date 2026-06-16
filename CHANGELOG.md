@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Attack graph v3 rollout (Phase 3a/3b)** — default `attack_graph_version=3`; YAML template matcher replaces `AttackChainAnalyzer`; 12 chain templates including `SSRF_RESOURCE`, `ENV_SAMPLING`, `GIT_UNSCOPED`, `PROMPT_BYPASS`, `ELICIT_PHISH`, `TOCTOU_READ`, `READ_EXEC`, `CRED_THEFT`; capability overlap fallbacks; dashboard v3 paths + SARIF `mcts/attackPathExplanation`; R-23 `ELICIT_PHISH` regression fixture + `tests/scoring/test_phase_3b_templates.py`
 - **Fact provenance metrics** — `fact_coverage()` reports `native_pct` / `silver_pct`; dashboard exposes `fact_provenance`; CI gates via `check_ttu_baseline.py` + corpus `--check-only`
 - **Scoring corpus** — `single_tool_overlap` fixture under enforce; Spearman calibration validates without mutating fixtures in CI
 - **Taxonomy display** — MCTS-T-1005 renamed to “Capability Overlap & Attack Paths” (ID unchanged)
@@ -69,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ELICIT_PHISH matching** — client-capability `TRIGGERS` edges use `trust_boundary` layer; path enumeration terminates at dead-end capability nodes
 - **Validator hardening** — removed standalone `evidence.hop_count` and `evidence.path` proven-path bypasses; chain level matches associated graph path
 - **Auxiliary trust explicit parity** — vet/fuzz/inventory/readiness/pentest set `findings_trust_mode_explicit` when `--findings-trust-mode` is passed; API readiness adds `ignore_policy` + explicit flag
 - **Pentest warn parity** — verdict and ranking use display severity when trust ≠ off (aligned with fuzz/vet exit)

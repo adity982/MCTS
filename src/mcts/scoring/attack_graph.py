@@ -148,6 +148,8 @@ class AttackGraph:
         return self._store_edge(edge)
 
     def merge_edge(self, edge: GraphEdge) -> GraphEdge:
+        self.ensure_node(edge.from_node)
+        self.ensure_node(edge.to_node)
         key = _edge_key(edge.kind, edge.from_node, edge.to_node)
         existing_id = next(
             (

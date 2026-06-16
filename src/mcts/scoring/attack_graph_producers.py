@@ -43,6 +43,7 @@ def _edge_from_finding(
     confidence: float = 0.85,
     reachability: float = 1.0,
     label: str = "",
+    layer: GraphLayer = GraphLayer.DATAFLOW,
 ) -> GraphEdge:
     evidence = EdgeEvidence(
         rule_id=_finding_rule_id(finding) or None,
@@ -62,7 +63,7 @@ def _edge_from_finding(
         confidence=confidence,
         reachability=reachability,
         evidence=[evidence],
-        layer=GraphLayer.DATAFLOW,
+        layer=layer,
     )
 
 
@@ -394,6 +395,221 @@ def export_read_edges(server: MCPServerInfo, findings: list[Finding]) -> list[Gr
     return edges
 
 
+def _can_chain_tools(src: MCPTool, dst: MCPTool) -> bool:
+    if not src.capability or not dst.capability:
+        return False
+    s, d = src.capability, dst.capability
+    return (
+        s.reads_untrusted_input and (d.egresses_network or d.executes_commands or d.accesses_sensitive_data)
+    ) or (s.accesses_sensitive_data and d.egresses_network)
+
+
+def export_capability_chain_edges(server: MCPServerInfo, findings: list[Finding]) -> list[GraphEdge]:
+    """Heuristic INVOKES edges between tools (legacy capability-graph parity)."""
+    edges: list[GraphEdge] = []
+    for src in server.tools:
+        for dst in server.tools:
+            if src.name == dst.name or not _can_chain_tools(src, dst):
+                continue
+            edges.append(
+                GraphEdge(
+                    id=f"edge-invokes-{src.name}-{dst.name}",
+                    kind=EdgeKind.INVOKES,
+                    from_node=canonical_node_id("tool", src.name),
+                    to_node=canonical_node_id("tool", dst.name),
+                    confidence=0.55,
+                    reachability=0.75,
+                    layer=GraphLayer.DATAFLOW,
+                    label="capability_chain",
+                    evidence_strength="heuristic",
+                    analysis_depth="L0",
+                )
+            )
+    return edges
+
+
+def export_client_capability_edges(server: MCPServerInfo, findings: list[Finding]) -> list[GraphEdge]:
+    edges: list[GraphEdge] = []
+    sampling = canonical_node_id("capability", "sampling")
+    elicitation = canonical_node_id("capability", "elicitation")
+    env_tools = [
+        t.name
+        for t in server.tools
+        if "env" in t.name.lower() or (t.capability and t.capability.accesses_sensitive_data)
+    ]
+    for tool_name in env_tools:
+        edges.append(
+            GraphEdge(
+                id=f"edge-triggers-sampling-{tool_name}",
+                kind=EdgeKind.TRIGGERS,
+                from_node=canonical_node_id("tool", tool_name),
+                to_node=sampling,
+                confidence=0.7,
+                reachability=0.85,
+                layer=GraphLayer.TRUST_BOUNDARY,
+                label="CAP-04",
+                evidence_strength="heuristic",
+                analysis_depth="L0",
+            )
+        )
+    for finding in findings:
+        if finding.analyzer != "transport_exposure":
+            continue
+        rule_id = _finding_rule_id(finding)
+        if rule_id not in {"CAP-05", "CAP-06"}:
+            continue
+        tool = _finding_tool(finding) or "trigger-url-elicitation"
+        edges.append(
+            _edge_from_finding(
+                kind=EdgeKind.TRIGGERS,
+                from_node=canonical_node_id("tool", tool),
+                to_node=elicitation,
+                finding=finding,
+                confidence=0.75,
+                label=rule_id,
+                layer=GraphLayer.TRUST_BOUNDARY,
+            )
+        )
+    for tool in server.tools:
+        if "elicitation" in tool.name.lower() or "trigger-url" in tool.name.lower():
+            edges.append(
+                GraphEdge(
+                    id=f"edge-triggers-elicitation-{tool.name}",
+                    kind=EdgeKind.TRIGGERS,
+                    from_node=canonical_node_id("tool", tool.name),
+                    to_node=elicitation,
+                    confidence=0.7,
+                    reachability=0.8,
+                    layer=GraphLayer.TRUST_BOUNDARY,
+                    label="CAP-05",
+                    evidence_strength="heuristic",
+                    analysis_depth="L0",
+                )
+            )
+    return edges
+
+
+def _finding_file(finding: Finding) -> str | None:
+    if finding.location and finding.location.file:
+        return finding.location.file
+    evidence = finding.evidence or {}
+    if file := evidence.get("file"):
+        return str(file)
+    for fact in evidence.get("facts") or []:
+        if isinstance(fact, dict) and fact.get("file"):
+            return str(fact["file"])
+    code_loc = evidence.get("code_location") or {}
+    if isinstance(code_loc, dict) and code_loc.get("file"):
+        return str(code_loc["file"])
+    return None
+
+
+def _infer_git_tool(server: MCPServerInfo, findings: list[Finding]) -> str | None:
+    for finding in findings:
+        if finding.analyzer != "scoping":
+            continue
+        rule_id = _finding_rule_id(finding)
+        if rule_id not in {"GIT-03", "GIT-04", "AUTH-01"}:
+            continue
+        tool = _finding_tool(finding)
+        if tool:
+            return tool
+        path = (_finding_file(finding) or "").lower()
+        if "/git/" in path or path.endswith("/git") or "mcp_server_git" in path:
+            return "git_log"
+    return None
+
+
+def _infer_filesystem_tool(findings: list[Finding]) -> str | None:
+    for finding in findings:
+        if finding.analyzer != "sym_toctou":
+            continue
+        tool = _finding_tool(finding)
+        if tool:
+            return tool
+        path = (_finding_file(finding) or "").lower()
+        if "filesystem" in path or "path-validation" in path:
+            return "read_file"
+    return None
+
+
+def export_git_read_edges(server: MCPServerInfo, findings: list[Finding]) -> list[GraphEdge]:
+    edges: list[GraphEdge] = []
+    git_tools: set[str] = set()
+    for tool in server.tools:
+        if tool.name.lower().startswith("git") or "git_" in tool.name.lower():
+            git_tools.add(tool.name)
+    for finding in findings:
+        if finding.analyzer != "scoping":
+            continue
+        rule_id = _finding_rule_id(finding)
+        if rule_id not in {"GIT-03", "GIT-04", "AUTH-01"}:
+            continue
+        tool = _finding_tool(finding)
+        if tool:
+            git_tools.add(tool)
+    synthetic = _infer_git_tool(server, findings)
+    if synthetic:
+        git_tools.add(synthetic)
+    for tool_name in sorted(git_tools):
+        edges.append(
+            GraphEdge(
+                id=f"edge-reads-git-{tool_name}",
+                kind=EdgeKind.READS,
+                from_node=canonical_node_id("tool", tool_name),
+                to_node="sink:disk",
+                confidence=0.75,
+                reachability=1.0,
+                layer=GraphLayer.DATAFLOW,
+                label="GIT-03",
+            )
+        )
+    return edges
+
+
+def export_sym_toctou_edges(server: MCPServerInfo, findings: list[Finding]) -> list[GraphEdge]:
+    edges: list[GraphEdge] = []
+    for finding in findings:
+        if finding.analyzer != "sym_toctou":
+            continue
+        tool = _finding_tool(finding)
+        if not tool:
+            for candidate in server.tools:
+                if candidate.capability and candidate.capability.reads_untrusted_input:
+                    tool = candidate.name
+                    break
+        if not tool:
+            tool = _infer_filesystem_tool([finding])
+        if not tool:
+            continue
+        from_node = canonical_node_id("tool", tool)
+        edges.append(
+            _edge_from_finding(
+                kind=EdgeKind.READS,
+                from_node=from_node,
+                to_node="sink:disk",
+                finding=finding,
+                confidence=0.7,
+                label=_finding_rule_id(finding) or "SYM-01",
+            )
+        )
+        edges.append(
+            GraphEdge(
+                id=f"edge-reads-toctou-{tool}-parallel",
+                kind=EdgeKind.READS,
+                from_node=from_node,
+                to_node="source:parallel_read",
+                confidence=0.65,
+                reachability=0.8,
+                layer=GraphLayer.DATAFLOW,
+                label="SYM-02",
+                evidence_strength="heuristic",
+                analysis_depth="L0",
+            )
+        )
+    return edges
+
+
 PRODUCER_REGISTRY: dict[str, GraphEdgeExporter] = {
     "network_egress": export_network_egress_edges,
     "transport_exposure": export_transport_edges,
@@ -406,6 +622,10 @@ PRODUCER_REGISTRY: dict[str, GraphEdgeExporter] = {
     "context_memory_implant": export_memory_poison_edges,
     "filesystem_abuse": export_read_edges,
     "read_exfil": export_read_edges,
+    "sym_toctou": export_sym_toctou_edges,
+    "git_reads": export_git_read_edges,
+    "capability_chains": export_capability_chain_edges,
+    "client_capabilities": export_client_capability_edges,
 }
 
 
@@ -424,6 +644,9 @@ def export_all_edges(server: MCPServerInfo, findings: list[Finding]) -> list[Gra
             edges.extend(exporter(server, findings))
             seen_producers.add(name)
     edges.extend(export_read_edges(server, findings))
+    edges.extend(export_capability_chain_edges(server, findings))
+    edges.extend(export_client_capability_edges(server, findings))
+    edges.extend(export_git_read_edges(server, findings))
     return edges
 
 

@@ -48,7 +48,7 @@ def test_history_records_display_critical_and_trust_mode(tmp_path, monkeypatch) 
 def test_category_scores_use_display_when_enforced() -> None:
     finding = Finding(
         id="x",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         severity=Severity.CRITICAL,
         display_severity=Severity.MEDIUM,
         title="Overlap chain",
@@ -65,7 +65,7 @@ def test_category_scores_use_display_when_enforced() -> None:
 def test_owasp_risk_level_uses_display_when_enforced() -> None:
     finding = Finding(
         id="x",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         severity=Severity.CRITICAL,
         display_severity=Severity.MEDIUM,
         title="Overlap chain",
@@ -97,7 +97,7 @@ def test_severity_filter_uses_display_when_enforce() -> None:
     ).run()
     security = [f for f in report.findings if f.analyzer not in _NON_SECURITY_ANALYZERS]
     assert all(effective_severity(f) == Severity.CRITICAL for f in security)
-    assert not any(f.analyzer == "attack_chains" for f in security)
+    assert not any(f.analyzer == "attack_graph" for f in security)
 
 
 def test_severity_filter_uses_template_when_warn() -> None:
@@ -111,7 +111,7 @@ def test_severity_filter_uses_template_when_warn() -> None:
     security = [f for f in report.findings if f.analyzer not in _NON_SECURITY_ANALYZERS]
     assert security
     assert all(f.severity == Severity.CRITICAL for f in security)
-    assert any(f.analyzer == "attack_chains" for f in security)
+    assert any(f.analyzer == "attack_graph" for f in security)
 
 
 def _minimal_report(**kwargs) -> ScanReport:
@@ -153,7 +153,7 @@ def test_warn_mode_sarif_capped_gates_still_use_template() -> None:
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="warn")).run()
     sarif = build_sarif(report)
     chain_results = [
-        r for r in sarif["runs"][0]["results"] if r.get("properties", {}).get("analyzer") == "attack_chains"
+        r for r in sarif["runs"][0]["results"] if r.get("properties", {}).get("analyzer") == "attack_graph"
     ]
     assert chain_results
     assert chain_results[0]["level"] == "warning"
@@ -169,7 +169,7 @@ def test_warn_mode_sarif_security_severity_capped() -> None:
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="warn")).run()
     sarif = build_sarif(report)
     chain_results = [
-        r for r in sarif["runs"][0]["results"] if r.get("properties", {}).get("analyzer") == "attack_chains"
+        r for r in sarif["runs"][0]["results"] if r.get("properties", {}).get("analyzer") == "attack_graph"
     ]
     assert chain_results
     rule_id = chain_results[0]["ruleId"]

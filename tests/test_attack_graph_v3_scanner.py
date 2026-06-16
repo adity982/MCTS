@@ -21,14 +21,23 @@ MVP_TEMPLATE_FIXTURES = {
     "R-19-memory-poison": "MEMORY_POISON",
 }
 
+PHASE_3B_TEMPLATE_FIXTURES = {
+    "R-15-gzip-resource": "SSRF_RESOURCE",
+    "R-02-dual-fetch": "PROMPT_BYPASS",
+    "R-04-git-scoping": "GIT_UNSCOPED",
+    "R-09-toctou-test": "TOCTOU_READ",
+    "R-10-symlink-listing": "TOCTOU_READ",
+    "R-07-get-env": "ENV_SAMPLING",
+    "R-23-elicitation-phish": "ELICIT_PHISH",
+}
+
 
 def test_scanner_emits_v3_attack_graph(tmp_path: Path) -> None:
     server_py = tmp_path / "server.py"
     content = "import httpx\nasync def fetch(url):\n    return httpx.get(url, follow_redirects=True)\n"
     server_py.write_text(content, encoding="utf-8")
-    config = ScanConfig(target=tmp_path, attack_graph_version=3, attack_graph_legacy_chains=False)
+    config = ScanConfig(target=tmp_path, attack_graph_version=3)
     scanner = Scanner(config)
-    scanner.analyzers = [a for a in scanner.analyzers if getattr(a, "name", None) != "attack_chains"]
     server = MCPServerInfo(
         name="fetch",
         source_files={"server.py": content},
@@ -40,9 +49,8 @@ def test_scanner_emits_v3_attack_graph(tmp_path: Path) -> None:
 
 
 def test_v3_config_enables_graph_builder() -> None:
-    config = ScanConfig(target=".", attack_graph_version=3)
+    config = ScanConfig(target=".")
     assert config.attack_graph_version == 3
-    assert config.attack_graph_legacy_chains is False
 
 
 @pytest.mark.parametrize(("fixture_id", "template_id"), MVP_TEMPLATE_FIXTURES.items())
@@ -53,7 +61,20 @@ def test_mvp_template_matches_regression_fixture(fixture_id: str, template_id: s
         target=str(target),
         surface_depth="full",
         attack_graph_version=3,
-        attack_graph_legacy_chains=False,
+    )
+    report = Scanner(config).run()
+    matched = set(report.attack_graph.get("templates_matched") or [])
+    assert template_id in matched
+
+
+@pytest.mark.parametrize(("fixture_id", "template_id"), PHASE_3B_TEMPLATE_FIXTURES.items())
+def test_phase_3b_template_matches_regression_fixture(fixture_id: str, template_id: str) -> None:
+    spec = json.loads((REGRESSION / fixture_id / "expected.json").read_text(encoding="utf-8"))
+    target = MONOREPO_MINI / spec["servers_path"]
+    config = ScanConfig(
+        target=str(target),
+        surface_depth="full",
+        attack_graph_version=3,
     )
     report = Scanner(config).run()
     matched = set(report.attack_graph.get("templates_matched") or [])

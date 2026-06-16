@@ -145,11 +145,12 @@ When `score_v2` is present, the dashboard shows v2 metrics only (legacy gauge an
 
 ## Attack chain graph
 
-Renders `ScanReport.attack_graph` from `AttackChainAnalyzer`:
+Renders `ScanReport.attack_graph` from attack graph v3 (`GraphBuilder`):
 
-- Nodes = tools with capability profiles
-- Edges = inferred attack transitions (read→exfil, read→exec, etc.)
-- Empty state when no chains detected (no synthetic fake edges)
+- Nodes = tools, prompts, resources, sinks, and capability/transport surfaces
+- Edges = inferred dataflow and trust-boundary transitions from static producers + policy
+- Paths panel = matched YAML template chains with hop counts and explanations
+- Empty state when no templates match (no synthetic fake edges)
 
 ---
 

@@ -102,6 +102,11 @@ def load_mvp_templates() -> list[ChainTemplate]:
     return [t for t in load_templates() if t.id in allowed]
 
 
+def load_chain_templates() -> list[ChainTemplate]:
+    """Load all registered chain templates (Phase 3a + 3b)."""
+    return load_templates()
+
+
 def load_fixes_registry(path: Path | None = None) -> dict[str, Any]:
     registry_path = path or FIXES_REGISTRY_PATH
     if not registry_path.is_file():

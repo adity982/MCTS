@@ -9,6 +9,7 @@ VALID_STABILITY = frozenset({"experimental", "heuristic", "mature", "verified"})
 # Analyzer-level defaults — distinct from per-finding confidence.
 RULE_STABILITY_BY_ANALYZER: dict[str, str] = {
     "attack_chains": "heuristic",
+    "attack_graph": "heuristic",
     "behavioral_static": "heuristic",
     "jailbreak": "heuristic",
     "llm_judge": "experimental",

@@ -9,7 +9,7 @@ from mcts.reporting.models import Finding, Severity
 from mcts.scoring.attack_graph import AttackGraph
 from mcts.scoring.attack_graph_models import ExplanationStep, GraphPath, MatchedChain, parse_node_id
 from mcts.scoring.graph_risk import downgrade_severity
-from mcts.scoring.graph_templates import ChainTemplate, load_mvp_templates
+from mcts.scoring.graph_templates import ChainTemplate, load_chain_templates
 
 
 def describe_edge(edge: Any, graph: AttackGraph) -> ExplanationStep:
@@ -51,7 +51,7 @@ def generate_explanation(
 def matched_chain_to_finding(template_id: str, chains: list[MatchedChain]) -> Finding | None:
     if not chains:
         return None
-    templates = {t.id: t for t in load_mvp_templates()}
+    templates = {t.id: t for t in load_chain_templates()}
     template = templates.get(template_id)
     if template is None:
         return None

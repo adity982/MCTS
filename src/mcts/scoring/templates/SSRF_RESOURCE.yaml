@@ -1,0 +1,30 @@
+id: SSRF_RESOURCE
+title: SSRF staged via session resource
+severity: critical
+finding_class: security
+min_confidence: 0.6
+min_reachability: 0.25
+max_depth: 6
+exploit_cost: 2
+anchor:
+  first_edge: EGRESS
+layers:
+  - dataflow
+  - trust_boundary
+edge_pattern:
+  - kind: EGRESS
+  - kind: WRITES
+    to_kind: resource
+  - kind: RESOURCE_READABLE_BY_CONTEXT
+    to: sink:model_context
+node_filters:
+  tool_name_prefix: ["gzip", "fetch"]
+recommended_fixes:
+  - disable_network_egress
+  - use_resource_link_not_inline_blob
+  - cap_session_resources
+explanation_steps:
+  - "User-controlled URL reaches network egress."
+  - "Response is written to a session resource."
+  - "If the agent reads the resource, content enters model context."
+legacy_finding_id: chain-ssrf-resource

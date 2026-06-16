@@ -86,7 +86,7 @@ flowchart LR
 
 1. **Tool discovery** — Static parsers (or live `tools/list`) build `MCPServerInfo.tools`.
 2. **Capability inference** — Each tool gets a `CapabilityProfile` (read, egress, credentials, exec, mutate) from name, description, schema, and handler snippet.
-3. **Analyzers** — Independent modules (`attack_chains`, `prompt_injection`, `supply_chain`, …) each return zero or more `Finding` objects.
+3. **Analyzers** — Independent modules (`prompt_injection`, `supply_chain`, `transport_exposure`, …) each return zero or more `Finding` objects. Post-analyzer **`attack_graph`** (v3 `GraphBuilder`) emits template chain findings from the merged graph.
 4. **Evidence enrichment** — Post-pass adds tags (e.g. `reachability_tag`, graph `path`/`hop_count` when a real path exists).
 5. **Findings validation** (when `findings_trust_mode` ≠ `off`) — Caps overlap chain **display** severity, sets `evidence_type`, `priority_score`, rewrites titles in enforce mode, strips misleading path/hop on overlap.
 6. **Provenance enrichment** (when trust on) — Attack chains get `evidence.facts`, `confidence_factors`, counterfactual remediation.
@@ -95,7 +95,7 @@ flowchart LR
 
 Implementation references:
 
-- Attack chains: `src/mcts/analyzers/attack_chains.py`
+- Attack graph v3: `src/mcts/scoring/attack_graph_builder.py`, `src/mcts/scoring/templates/`
 - Validator: `src/mcts/reporting/finding_validator.py`
 - Capability rules: `src/mcts/capability/inferrer.py`
 - Dashboard rows: `src/mcts/report/data.py` (`format_evidence_summary`, `build_dashboard_payload`)
@@ -153,22 +153,14 @@ With **`--findings-trust-mode enforce`**, the same overlap typically becomes:
 
 A second row, **Read → exfiltration**, is similar with `read_tools` + `exfil_tools` only.
 
-### What the analyzer actually checks
+### What the graph builder actually checks
 
-`AttackChainAnalyzer` does **not** simulate an attack or trace data flow at runtime. It:
+Attack graph v3 does **not** simulate an attack or trace data flow at runtime. `GraphBuilder`:
 
-1. Partitions tools into buckets using **inferred capabilities**:
-   - `read_tools` — `reads_untrusted_input`
-   - `credential_tools` — `accesses_sensitive_data`
-   - `exfil_tools` — `egresses_network`
-   - `exec_tools` — `executes_commands`
-
-2. Emits template findings when combinations exist:
-   - read + exfil → `chain-read-exfil`
-   - read + credential + exfil → `chain-credential-theft`
-   - read + exec → `chain-read-exec`
-
-3. Builds a **capability graph** (edges when one tool’s capabilities could chain into another’s) and attaches `path` / `hop_count` when enrichment finds a matching path.
+1. Collects edges from static producers (egress, reads/writes, transport exposure, client capabilities, …).
+2. Applies policy edges (e.g. resource → model context with default `access_probability=0.3`).
+3. Matches YAML templates when edge patterns and node filters align (e.g. read + exfil, SSRF resource staging, URL elicitation phishing).
+4. Attaches validated `path` / `hop_count` on template matches; capability-overlap findings remain separate with trust capping.
 
 ### Why one tool fills every bucket
 

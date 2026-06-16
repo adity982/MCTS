@@ -26,14 +26,14 @@ def test_v2_mode_still_populates_legacy_score() -> None:
 
 def test_paths_present_when_chains_enabled_on_vulnerable() -> None:
     report = Scanner(ScanConfig(target=VULNERABLE, scoring_mode="both")).run()
-    assert "attack_chains" in report.analyzers_executed
+    assert "attack_graph" in report.analyzers_executed
     graph = canonical_attack_graph(report)
     assert graph.get("paths")
 
 
 def test_attack_chains_meta_present_but_excluded_from_v2_basis() -> None:
     report = Scanner(ScanConfig(target=VULNERABLE, scoring_mode="v2")).run()
-    assert any(f.analyzer == "attack_chains" for f in report.findings)
+    assert any(f.analyzer == "attack_graph" for f in report.findings)
     assert report.score_v2 is not None
     assert report.score_v2.basis.excluded_non_scorable >= 5
     assert report.score_v2.basis.scorable_count == (
@@ -76,6 +76,7 @@ def test_filtered_scan_graph_matches_dashboard_payload() -> None:
         ScanConfig(
             target=VULNERABLE,
             scoring_mode="both",
+            attack_graph_version=2,
             enable_attack_chains=False,
             surfaces=["prompt"],
             surface_scoped_analyzers=True,
@@ -92,5 +93,5 @@ def test_compliance_excluded_from_v2_basis() -> None:
     report = Scanner(ScanConfig(target=VULNERABLE, scoring_mode="v2")).run()
     assert report.score_v2 is not None
     compliance_rows = sum(1 for f in report.findings if f.analyzer == "compliance")
-    chain_rows = sum(1 for f in report.findings if f.analyzer == "attack_chains")
+    chain_rows = sum(1 for f in report.findings if f.analyzer == "attack_graph")
     assert report.score_v2.basis.excluded_non_scorable >= compliance_rows + chain_rows

@@ -22,7 +22,7 @@ def test_apply_trust_layer_off_is_noop() -> None:
 def test_apply_trust_layer_enforce_sets_display_fields() -> None:
     finding = Finding(
         id="chain-credential-theft",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         title="Credential theft chain possible",
         description="d",
         severity=Severity.CRITICAL,

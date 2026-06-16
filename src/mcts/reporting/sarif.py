@@ -225,6 +225,13 @@ def _finding_to_result(
     attack_tags = finding.evidence.get("attack_tags")
     if isinstance(attack_tags, list) and attack_tags:
         result["properties"]["attack_tags"] = [str(tag) for tag in attack_tags if isinstance(tag, str)]
+    if finding.analyzer == "attack_graph":
+        from mcts.scoring.graph_ui import format_attack_path_explanation
+
+        explanation = format_attack_path_explanation(finding)
+        if explanation:
+            result["message"]["text"] = explanation
+            result["properties"]["mcts/attackPathExplanation"] = explanation
     if finding.tool:
         result["properties"]["tool"] = finding.tool
     if finding.technique_id:

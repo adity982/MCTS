@@ -1,0 +1,30 @@
+id: ENV_SAMPLING
+title: Environment read delivered to client LLM via sampling
+severity: critical
+finding_class: security
+min_confidence: 0.6
+min_reachability: 0.25
+max_depth: 5
+exploit_cost: 2
+anchor:
+  first_edge: READS
+layers:
+  - dataflow
+  - trust_boundary
+edge_pattern:
+  - kind: READS
+    to: sink:env
+  - kind: TRIGGERS
+    to_kind: capability
+  - kind: DELIVERS_TO_CLIENT_LLM
+    to: sink:client_llm
+node_filters:
+  tool_name_contains: ["env", "get-env"]
+recommended_fixes:
+  - remove_env_tool
+  - disable_sampling
+  - gate_sampling_behind_auth
+explanation_steps:
+  - "Tool reads process environment variables."
+  - "Server exposes sampling capability to the client."
+  - "Sampling can deliver env content to the client's LLM."

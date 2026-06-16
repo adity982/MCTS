@@ -15,9 +15,9 @@ SINGLE_TOOL = Path("examples/single-tool-agent-server/server.py")
 
 def test_attack_chain_enforce_includes_facts_and_confidence_factors() -> None:
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="enforce")).run()
-    chains = [f for f in report.findings if f.analyzer == "attack_chains"]
+    chains = [f for f in report.findings if f.analyzer == "attack_graph"]
     assert chains
-    finding = chains[0]
+    finding = next(f for f in chains if f.id == "chain-credential-theft")
     facts = finding.evidence.get("facts") or []
     assert facts
     assert any(f.get("rule_id") == "CAP_CREDENTIAL_KEYWORD" for f in facts)
@@ -45,7 +45,7 @@ def test_provenance_enricher_builds_counterfactual_from_tool_signals() -> None:
     )
     finding = Finding(
         id="chain-credential-theft",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         title="Credential theft chain possible",
         description="overlap",
         severity=Severity.CRITICAL,
@@ -70,7 +70,7 @@ def test_dashboard_payload_exposes_provenance_fields() -> None:
 
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="enforce")).run()
     payload = build_dashboard_payload(report)
-    chain = next(row for row in payload["findings"] if row["analyzer"] == "attack_chains")
+    chain = next(row for row in payload["findings"] if row["analyzer"] == "attack_graph")
     assert chain["has_provenance"]
     assert chain["facts"]
     assert chain["confidence_factors"]

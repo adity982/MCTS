@@ -18,6 +18,7 @@ OWASP_LLM_ANALYZER_MAP: dict[str, str] = {
     "command_execution": "LLM06 Excessive Agency",
     "permission_analyzer": "LLM06 Excessive Agency",
     "attack_chains": "LLM06 Excessive Agency",
+    "attack_graph": "LLM06 Excessive Agency",
     "cross_server": "LLM06 Excessive Agency",
     "toxic_flows": "LLM06 Excessive Agency",
     "jailbreak": "LLM07 System Prompt Leakage",
@@ -54,6 +55,7 @@ MCP_ANALYZER_MAP: dict[str, str] = {
     "oauth_config": "MCP06 OAuth & Auth Misconfiguration",
     "runtime_events": "MCP10 Runtime Behavior & Exfiltration",
     "attack_chains": "MCP08 Excessive Tool Surface",
+    "attack_graph": "MCP08 Excessive Tool Surface",
     "jailbreak": "MCP08 Excessive Tool Surface",
     "skill_md": "MCP09 Instruction File / Skill Poisoning",
 }

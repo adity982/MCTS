@@ -9,6 +9,7 @@ from mcts.scoring.models import ADDITIVE_FACTORS
 ANALYZER_CONFIDENCE_CAP: dict[str, float] = {
     "permission_analyzer": 0.75,
     "attack_chains": 0.70,
+    "attack_graph": 0.70,
     "tool_abuse": 0.70,
     "cross_server": 0.70,
     "prompt_injection": 0.85,

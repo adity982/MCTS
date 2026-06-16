@@ -1,0 +1,23 @@
+id: SSRF_EXFIL
+title: SSRF exfiltration to model context
+severity: critical
+finding_class: security
+min_confidence: 0.6
+min_reachability: 0.25
+max_depth: 4
+exploit_cost: 2
+anchor:
+  first_edge: EGRESS
+layers:
+  - dataflow
+  - trust_boundary
+edge_pattern:
+  - kind: EGRESS
+  - kind: DELIVERS_TO_CONTEXT
+    to: sink:model_context
+explanation_steps:
+  - "Tool performs outbound network access with user-influenced URL."
+  - "Tool result is delivered automatically to model context."
+recommended_fixes:
+  - disable_network_egress
+  - add_url_policy

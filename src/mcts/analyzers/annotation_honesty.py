@@ -36,6 +36,12 @@ _READONLY_ENV = re.compile(
     re.IGNORECASE,
 )
 _PY_TOOL = re.compile(r"@mcp\.tool\(\)|@server\.call_tool\(\)", re.MULTILINE)
+_PY_MCP_TOOL = re.compile(
+    r"Tool\s*\(\s*name=GitTools\.(\w+)[\s\S]*?destructiveHint=False",
+    re.MULTILINE | re.IGNORECASE,
+)
+_GIT_WRITE_TOOLS = frozenset({"COMMIT", "CHECKOUT", "ADD", "CREATE_BRANCH"})
+_GIT_WRITE_HANDLERS = re.compile(r"\bgit_(?:commit|checkout|add|create_branch)\s*\(", re.MULTILINE)
 
 
 class AnnotationHonestyAnalyzer(BaseAnalyzer):
@@ -130,25 +136,44 @@ class AnnotationHonestyAnalyzer(BaseAnalyzer):
         return findings
 
     def _analyze_python_tools(self, path: str, content: str, *, demo: bool) -> list[Finding]:
-        if not _PY_TOOL.search(content):
+        if not _PY_TOOL.search(content) and "GitTools." not in content:
             return []
         findings: list[Finding] = []
-        if (
-            (_DESTRUCTIVE_FALSE.search(content) or "destructiveHint" not in content)
-            and re.search(r"\bgit_commit\b|\bgit_checkout\b|\bgit_reset\b", content)
-            and not re.search(r"destructiveHint\s*:\s*true", content, re.IGNORECASE)
-        ):
+        for match in _PY_MCP_TOOL.finditer(content):
+            tool_enum = match.group(1)
+            if tool_enum not in _GIT_WRITE_TOOLS:
+                continue
+            op = tool_enum.lower()
             findings.append(
                 _ann_finding(
                     rule_id="ANN-E3",
-                    title="Git write tool without destructiveHint alignment",
-                    description="git commit/checkout/reset without honest destructiveHint.",
+                    title=f"Git {op} tool marked destructiveHint false",
+                    description=f"git {op} with destructiveHint=False understates write behavior.",
                     severity=Severity.MEDIUM,
                     file=path,
-                    line=_line_no(content, re.compile(r"git_commit|git_checkout")),
+                    line=_line_in(content, match.start()),
                     demo=demo,
                 )
             )
+        if (
+            not findings
+            and _GIT_WRITE_HANDLERS.search(content)
+            and _DESTRUCTIVE_FALSE.search(content)
+            and not re.search(r"destructiveHint\s*=\s*True", content, re.IGNORECASE)
+        ):
+            handler_match = _GIT_WRITE_HANDLERS.search(content)
+            if handler_match:
+                findings.append(
+                    _ann_finding(
+                        rule_id="ANN-E3",
+                        title="Git write handler without destructiveHint alignment",
+                        description="git commit/checkout/write without honest destructiveHint.",
+                        severity=Severity.MEDIUM,
+                        file=path,
+                        line=_line_in(content, handler_match.start()),
+                        demo=demo,
+                    )
+                )
         return findings
 
 

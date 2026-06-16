@@ -26,7 +26,7 @@ from mcts.scoring.uncertainty import (
     factor_breakdown_dict,
 )
 
-NON_SCORING_V2 = NON_SCORING_ANALYZERS | frozenset({"attack_chains"})
+NON_SCORING_V2 = NON_SCORING_ANALYZERS | frozenset({"attack_chains", "attack_graph"})
 
 
 def base_risk(finding: Finding, factors, weights: ScoringWeights, *, use_display: bool = False) -> int:

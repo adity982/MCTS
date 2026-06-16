@@ -16,7 +16,7 @@ from mcts.analyzers.resources_abuse import ResourcesAbuseAnalyzer
 from mcts.analyzers.shared_memory_poisoning import SharedMemoryPoisoningAnalyzer
 from mcts.analyzers.sym_toctou import SymToctouAnalyzer
 from mcts.analyzers.tasks_abuse import TasksAbuseAnalyzer
-from mcts.mcp.models import MCPServerInfo
+from mcts.mcp.models import MCPServerInfo, MCPTool
 
 _FIXTURES = Path("tests/fixtures/monorepo-mini")
 
@@ -136,3 +136,72 @@ def test_memory_migrate_mem09():
     server = MCPServerInfo(source_files={"index.ts": content})
     findings = MemoryPersistenceAnalyzer().analyze(server)
     assert "MEM-09" in _rule_ids(findings)
+
+
+def test_dos03_bounded_git_log_skips():
+    from mcts.analyzers.resource_limits import ResourceLimitsAnalyzer
+
+    bounded = """
+def git_log(repo, max_count: int = 10):
+    log_output = repo.git.log(*args).split('\\n')
+    for i in range(0, len(log_output), 4):
+        if len(log) < max_count:
+            log.append(log_output[i])
+"""
+    unbounded = """
+def git_log(repo_path, *args):
+    repo = git.Repo(repo_path)
+    return repo.git.log(*args)
+"""
+    analyzer = ResourceLimitsAnalyzer()
+    assert "DOS-03" not in _rule_ids(analyzer.analyze(MCPServerInfo(source_files={"server.py": bounded})))
+    assert "DOS-03" in _rule_ids(analyzer.analyze(MCPServerInfo(source_files={"server.py": unbounded})))
+
+
+def test_pois05_tagged_on_data_leakage():
+    from mcts.analyzers.data_leakage import DataLeakageAnalyzer, _finding_rule_id
+
+    source = "raise ValueError(f'fetch failed: {response.text}')"
+    findings = DataLeakageAnalyzer().analyze(MCPServerInfo(source_files={"server.py": source}))
+    pois = [f for f in findings if _finding_rule_id(f) == "POIS-05"]
+    assert pois
+    assert pois[0].evidence.get("exploitability_class") == "prompt_poisoning"
+
+
+def test_ann_e3_git_commit_checkout_blocks():
+    snippet = """
+Tool(
+    name=GitTools.COMMIT,
+    description="Records changes",
+    annotations=ToolAnnotations(destructiveHint=False),
+)
+Tool(
+    name=GitTools.CHECKOUT,
+    description="Switch branch",
+    annotations=ToolAnnotations(destructiveHint=False),
+)
+"""
+    findings = AnnotationHonestyAnalyzer().analyze(
+        MCPServerInfo(name="git", source_files={"server.py": snippet})
+    )
+    assert len([f for f in findings if (f.evidence or {}).get("rule_id") == "ANN-E3"]) >= 2
+
+
+def test_command_execution_ignores_executes_in_description():
+    from mcts.analyzers.command_execution import CommandExecutionAnalyzer
+
+    tool = MCPTool(
+        name="trigger-sampling-request-async",
+        description="client executes it asynchronously",
+        handler_snippet=('const config = { description: "client executes it asynchronously" };'),
+        source_file="tools/trigger-sampling-request-async.ts",
+    )
+    server = MCPServerInfo(
+        name="everything",
+        tools=[tool],
+        source_files={
+            "tools/trigger-sampling-request-async.ts": tool.handler_snippet or "",
+        },
+    )
+    findings = CommandExecutionAnalyzer().analyze(server)
+    assert not findings

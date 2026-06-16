@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from mcts import __version__
 from mcts.analyzers.annotation_honesty import AnnotationHonestyAnalyzer
@@ -251,7 +252,19 @@ class Scanner:
         findings = dedupe_sigma_findings(findings)
         findings = enrich_findings(findings)
 
-        raw_graph = self.attack_chains.last_graph if "attack_chains" in analyzers_executed else {}
+        raw_graph: dict[str, Any] = {}
+        if self.config.attack_graph_version >= 3:
+            from mcts.scoring.attack_graph_builder import GraphBuilder
+
+            attack_graph_model = GraphBuilder(config=self.config).build(server_info, findings)
+            chain_findings = attack_graph_model.to_findings()
+            findings.extend(chain_findings)
+            raw_graph = attack_graph_model.to_report_dict()
+            if self.config.attack_graph_legacy_chains:
+                legacy = self.attack_chains.analyze(server_info)
+                findings.extend(legacy)
+        elif "attack_chains" in analyzers_executed:
+            raw_graph = self.attack_chains.last_graph
         _trace_pipeline("graph")
 
         scan_scope = infer_scan_scope(self.config)
@@ -308,7 +321,10 @@ class Scanner:
         score_v2 = None
         report_attack_graph = raw_graph
         if self.config.scoring_mode in {"v2", "both"}:
-            chain_factor_mode = "paths_v1" if self.config.enable_attack_chains else "disabled"
+            if self.config.attack_graph_version >= 3 or self.config.enable_attack_chains:
+                chain_factor_mode = "paths_v1"
+            else:
+                chain_factor_mode = "disabled"
             ctx = build_scoring_context(
                 findings=findings,
                 server=server_info,
@@ -421,6 +437,8 @@ class Scanner:
         if name == "JailbreakAnalyzer":
             return self.config.enable_jailbreak
         if name == "AttackChainAnalyzer":
+            if self.config.attack_graph_version >= 3 and not self.config.attack_graph_legacy_chains:
+                return False
             if self.config.scoring_mode in {"v2", "both"}:
                 return True
             return self.config.enable_attack_chains

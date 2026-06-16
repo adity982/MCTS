@@ -16,8 +16,18 @@ _SIZE_CAP = re.compile(r"max_length|maxLength|max_bytes|len\s*\(|truncate|[:]\s*
 _HTTPX_GET = re.compile(r"(?:httpx|AsyncClient)[\s\S]{0,400}?\.get\s*\(", re.MULTILINE)
 _TIMEOUT = re.compile(r"timeout\s*=", re.MULTILINE)
 _ROBOTS_FETCH = re.compile(r"robots\.txt|check_may_autonomously", re.IGNORECASE)
-_GIT_LOG = re.compile(r"git\.log\s*\(|\.log\s*\(\s*\*args", re.MULTILINE)
-_GIT_LOG_N = re.compile(r"[-]n\b|max_count|limit\s*=", re.MULTILINE)
+_GIT_LOG_CALL = re.compile(r"\.git\.log\s*\(|repo\.git\.log\s*\(", re.MULTILINE)
+_GIT_LOG_BOUND = re.compile(
+    r"""
+    [-]n\b|
+    --max-count|
+    \bmax_count\b|
+    len\s*\([^)]+\)\s*<\s*max_count|
+    iter_commits\s*\([^)]*max_count|
+    \[:max_count\]
+    """,
+    re.VERBOSE | re.IGNORECASE,
+)
 _GZIP_SYNC = re.compile(r"gzipSync\s*\(", re.MULTILINE)
 _MAX_OUTPUT = re.compile(r"maxOutput|max_output|MAX_.*OUTPUT", re.IGNORECASE)
 _PYDANTIC_LE = re.compile(r"Field\s*\([^)]*le\s*=|conint\s*\([^)]*le\s*=", re.MULTILINE)
@@ -74,22 +84,16 @@ class ResourceLimitsAnalyzer(BaseAnalyzer):
                     )
                 )
                 break
-        if _GIT_LOG.search(content):
-            for match in _GIT_LOG.finditer(content):
-                start = match.start()
-                window = content[max(0, start - 80) : min(len(content), start + 500)]
-                if _GIT_LOG_N.search(window) or re.search(r"\bmax_count\b", window):
-                    continue
-                findings.append(
-                    _dos_finding(
-                        "DOS-03",
-                        "git.log without -n or max_count bound",
-                        Severity.MEDIUM,
-                        path,
-                        content[:start].count("\n") + 1,
-                    )
+        for line in _unbounded_git_log_lines(content):
+            findings.append(
+                _dos_finding(
+                    "DOS-03",
+                    "git.log without -n or max_count bound in enclosing function",
+                    Severity.MEDIUM,
+                    path,
+                    line,
                 )
-                break
+            )
         if _GZIP_SYNC.search(content):
             start = _line_no(content, _GZIP_SYNC) or 1
             region = content.splitlines()[max(0, start - 5) : start + 15]
@@ -114,6 +118,34 @@ class ResourceLimitsAnalyzer(BaseAnalyzer):
                 )
             )
         return findings
+
+
+def _unbounded_git_log_lines(content: str) -> list[int]:
+    """Return line numbers for git.log calls lacking bounds in the same function."""
+    lines: list[int] = []
+    for match in _GIT_LOG_CALL.finditer(content):
+        func_body = _enclosing_function_body(content, match.start())
+        if _GIT_LOG_BOUND.search(func_body):
+            continue
+        lines.append(content[: match.start()].count("\n") + 1)
+    return lines
+
+
+def _enclosing_function_body(content: str, offset: int) -> str:
+    before = content[:offset]
+    def_matches = list(re.finditer(r"^def \w+", before, re.MULTILINE))
+    if not def_matches:
+        return content[max(0, offset - 120) : min(len(content), offset + 600)]
+    start = def_matches[-1].start()
+    chunk = content[start:]
+    body_lines: list[str] = []
+    for line in chunk.splitlines():
+        if body_lines and line.startswith("def ") and not line[:1].isspace():
+            break
+        body_lines.append(line)
+        if len(body_lines) > 150:
+            break
+    return "\n".join(body_lines)
 
 
 def _dos_finding(

@@ -1,0 +1,32 @@
+{
+  "nodes": [
+    {"id": "transport:http", "kind": "transport", "label": "http"},
+    {"id": "tool:get-env", "kind": "tool", "label": "get-env"},
+    {"id": "sink:env", "kind": "sink", "label": "env"},
+    {"id": "sink:model_context", "kind": "sink", "label": "model_context"}
+  ],
+  "edges": [
+    {
+      "kind": "EXPOSES",
+      "from": "transport:http",
+      "to": "tool:get-env",
+      "confidence": 0.9,
+      "reachability": 0.9
+    },
+    {
+      "kind": "READS",
+      "from": "tool:get-env",
+      "to": "sink:env",
+      "confidence": 0.9,
+      "reachability": 1.0
+    },
+    {
+      "kind": "DELIVERS_TO_CONTEXT",
+      "from": "tool:get-env",
+      "to": "sink:model_context",
+      "confidence": 1.0,
+      "reachability": 1.0,
+      "policy": true
+    }
+  ]
+}

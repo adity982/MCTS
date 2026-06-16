@@ -37,12 +37,18 @@ def resolve_chain_factors(
 ) -> dict[str, float]:
     factors: dict[str, float] = {}
     for path in attack_graph.get("paths", []):
+        reachability = path.get("path_reachability")
+        if isinstance(reachability, (int, float)) and reachability < 0.3:
+            continue
         if use_display and not path_is_proven(path):
             continue
         hop_factor = hop_factor_for(path.get("hop_count", 0))
+        chain_risk = path.get("chain_risk_score")
+        if isinstance(chain_risk, (int, float)) and chain_risk > 0:
+            hop_factor = max(hop_factor, min(1.5, 1.0 + chain_risk / 20.0))
         tools_on_path = set(path.get("tools_on_path", path.get("nodes", [])))
         for finding in scorable_findings:
-            if finding.analyzer == "attack_chains":
+            if finding.analyzer in {"attack_chains", "attack_graph"}:
                 continue
             tool = finding.tool or finding.evidence.get("tool")
             if not tool and finding.evidence.get("affected_tools"):

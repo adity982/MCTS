@@ -1,0 +1,22 @@
+add_http_auth:
+  description: Add bearer auth middleware on HTTP transport
+  mutates:
+    - add_edge:
+        kind: GUARDS
+        from: control:bearer_auth
+        to: transport:http
+    - set_reachability:
+        edge_kind: EXPOSES
+        value: 0.1
+
+disable_http_transport:
+  description: Remove HTTP/SSE transport from production image
+  mutates:
+    - remove_nodes:
+        kind: transport
+
+remove_env_tool:
+  description: Unregister get-env or gate behind demo flag
+  mutates:
+    - remove_node:
+        pattern: tool:get-env

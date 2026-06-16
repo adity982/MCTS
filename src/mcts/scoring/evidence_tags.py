@@ -309,6 +309,14 @@ def enrich_graph_dependent_evidence(
             if "path" not in evidence and evidence.get("read_tools"):
                 evidence["path_status"] = "unproven"
             finding = finding.model_copy(update={"evidence": evidence})
+        elif finding.analyzer == "attack_graph":
+            evidence = dict(finding.evidence or {})
+            path_payload = evidence.get("paths") or []
+            if path_payload and "path" not in evidence:
+                top = path_payload[0]
+                evidence.setdefault("path", top.get("nodes") or top.get("tools_on_path"))
+                evidence.setdefault("hop_count", top.get("hop_count", 0))
+            finding = finding.model_copy(update={"evidence": evidence})
         elif finding.analyzer in {"prompt_injection", "schema_surface"}:
             evidence = dict(finding.evidence or {})
             evidence["reachability_tag"] = reachability_for_scope(scan_scope)

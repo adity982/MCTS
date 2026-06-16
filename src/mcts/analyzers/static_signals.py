@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from mcts.analyzers.base import BaseAnalyzer
 from mcts.analyzers.context_memory_implant import detect_context_memory_implant
-from mcts.analyzers.exposed_endpoint import detect_exposed_endpoint
 from mcts.analyzers.finding_facts import build_analyzer_finding
 from mcts.analyzers.parameter_exfil_chain import detect_parameter_exfil_chain
 from mcts.analyzers.shared_memory_poisoning import detect_shared_memory_poisoning
@@ -16,21 +14,12 @@ from mcts.reporting.finding_builder import FindingBuilder
 from mcts.reporting.finding_evidence import attach_spec_evidence
 from mcts.reporting.models import Finding, Severity, SourceLocation
 
-_APP_LISTEN = re.compile(r"\b(?:app|server|express\(\))\.listen\s*\(", re.MULTILINE)
 _STRUCTURED_CONTENT = re.compile(r"structuredContent", re.MULTILINE)
 _MEMORY_WRITE = re.compile(
     r"\b(?:create_entities|create_relations|save_memory|add_embedding|store_knowledge)\b",
     re.IGNORECASE,
 )
 _CONDITIONAL_TOOLS = re.compile(r"registerConditionalTools\s*\(", re.MULTILINE)
-_GIT_UNSCOPED_VALIDATION = re.compile(
-    r"if\s+allowed_repository\s+is\s+None\s*:\s*\n\s*return",
-    re.MULTILINE,
-)
-_GIT_OPTIONAL_REPOSITORY_CLI = re.compile(
-    r"@click\.option\s*\([^)]*--repository",
-    re.MULTILINE,
-)
 
 
 class StaticSignalsAnalyzer(BaseAnalyzer):
@@ -43,60 +32,11 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
         for path, content in server.source_files.items():
             if not content:
                 continue
-            findings.extend(self._check_exposed_endpoint(path, content))
             findings.extend(self._check_parameter_exfil(path, content))
             findings.extend(self._check_memory_poisoning(path, content))
             findings.extend(self._check_memory_implant(path, content))
             findings.extend(self._check_conditional_tools(path, content))
-            findings.extend(self._check_git_scoping(path, content, server))
         return findings
-
-    def _check_exposed_endpoint(self, path: str, content: str) -> list[Finding]:
-        if not _APP_LISTEN.search(content):
-            return []
-        if "127.0.0.1" in content and "0.0.0.0" not in content:
-            return []
-        line = _line_number(content, _APP_LISTEN)
-        event = {
-            "log_entry": {
-                "c-uri-path": "/sse",
-                "cs-host": "0.0.0.0",
-                "c-ip": "203.0.113.1",
-            }
-        }
-        if not detect_exposed_endpoint(event):
-            return []
-        builder = attach_spec_evidence(
-            FindingBuilder(
-                finding_id=f"static-exposed-endpoint-{hash(path) & 0xFFFF}",
-                analyzer=self.name,
-                title="HTTP MCP transport binds without localhost restriction",
-                description=(
-                    "Static analysis found app.listen without 127.0.0.1 binding — "
-                    "remote clients may reach MCP tools without authentication."
-                ),
-                severity=Severity.CRITICAL,
-                recommendation="Bind to 127.0.0.1 and add authentication middleware before /mcp routes.",
-            ),
-            surface="transport",
-            rule_id="CAP-01",
-            technique_id="MCTS-T-1027",
-            data_flow="transport → unauthenticated MCP",
-            file=path,
-            line=line,
-        )
-        return [
-            builder.location(path, line)
-            .confidence(0.75)
-            .fact(
-                rule_id="CAP-01",
-                match="app.listen without localhost bind",
-                field="transport",
-                file=path,
-                line=line,
-            )
-            .build()
-        ]
 
     def _check_parameter_exfil(self, path: str, content: str) -> list[Finding]:
         if not _STRUCTURED_CONTENT.search(content):
@@ -239,51 +179,6 @@ class StaticSignalsAnalyzer(BaseAnalyzer):
             )
             .build()
         ]
-
-    def _check_git_scoping(self, path: str, content: str, server: MCPServerInfo) -> list[Finding]:
-        if "mcp_server_git" not in path and "git" not in Path(path).parts:
-            return []
-        if not _GIT_UNSCOPED_VALIDATION.search(content):
-            return []
-        cli_sources = " ".join(
-            body
-            for src, body in server.source_files.items()
-            if src.endswith("__init__.py") or "click" in body
-        )
-        if _GIT_OPTIONAL_REPOSITORY_CLI.search(content) or _GIT_OPTIONAL_REPOSITORY_CLI.search(cli_sources):
-            line = _line_number(content, _GIT_UNSCOPED_VALIDATION)
-            builder = attach_spec_evidence(
-                FindingBuilder(
-                    finding_id=f"static-auth-01-{hash(path) & 0xFFFF}",
-                    analyzer=self.name,
-                    title="Git server allows unscoped repository access by default",
-                    description=(
-                        "When --repository is omitted, validate_repo_path accepts any repo_path (AUTH-01). "
-                        "An agent can read or mutate repositories outside operator intent."
-                    ),
-                    severity=Severity.CRITICAL,
-                    recommendation="Require --repository at startup or enforce client roots intersection.",
-                ),
-                surface="cli",
-                rule_id="AUTH-01",
-                technique_id="MCTS-T-auth-unscoped-git",
-                data_flow="missing --repository → any repo_path accepted",
-                file=path,
-                line=line,
-            )
-            return [
-                builder.location(path, line)
-                .confidence(0.85)
-                .fact(
-                    rule_id="AUTH-01",
-                    match="allowed_repository is None early return",
-                    field="scoping",
-                    file=path,
-                    line=line,
-                )
-                .build()
-            ]
-        return []
 
 
 def _line_number(content: str, pattern: re.Pattern[str]) -> int | None:

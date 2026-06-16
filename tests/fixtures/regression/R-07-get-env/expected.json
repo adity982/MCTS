@@ -1,0 +1,7 @@
+{
+  "servers_path": "src/everything",
+  "package_depth": "full",
+  "surface_depth": "full",
+  "required_rule_ids": ["CAP-03"],
+  "note": "R-07 — process.env dump tool in everything package"
+}

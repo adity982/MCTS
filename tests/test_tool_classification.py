@@ -89,5 +89,9 @@ def test_path_validation_skips_read_query() -> None:
 
 
 def test_path_validation_flags_read_file_without_guards() -> None:
-    findings = PathValidationAnalyzer().analyze(_server([_tool()]))
+    tool = _tool(
+        handler_snippet="def read_file(path):\n    return open(path).read()",
+        source_file="server.py",
+    )
+    findings = PathValidationAnalyzer().analyze(_server([tool]))
     assert any(f.analyzer == "path_validation" and f.tool == "read_file" for f in findings)

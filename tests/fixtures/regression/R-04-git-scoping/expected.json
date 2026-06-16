@@ -1,0 +1,8 @@
+{
+  "servers_path": "src/git",
+  "package_depth": "full",
+  "surface_depth": "full",
+  "required_rule_ids": ["AUTH-01"],
+  "max_score": 99,
+  "note": "R-04 — git unscoped repository access"
+}

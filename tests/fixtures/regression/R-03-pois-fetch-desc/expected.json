@@ -1,0 +1,6 @@
+{
+  "servers_path": "src/fetch/src/mcp_server_fetch/server.py",
+  "package_depth": "full",
+  "required_rule_ids": ["POIS-01"],
+  "note": "R-03 — fetch tool description permission escalation"
+}

@@ -19,6 +19,7 @@ from mcts.analyzers.llm_metadata_triage import LlmMetadataTriageAnalyzer
 from mcts.analyzers.metadata_dedupe import dedupe_metadata_findings
 from mcts.analyzers.metadata_diff import MetadataDiffAnalyzer, save_baseline
 from mcts.analyzers.metadata_integrity import MetadataIntegrityAnalyzer
+from mcts.analyzers.network_egress import NetworkEgressAnalyzer
 from mcts.analyzers.npm_audit import NpmAuditAnalyzer
 from mcts.analyzers.oauth_config import OAuthConfigAnalyzer
 from mcts.analyzers.path_validation import PathValidationAnalyzer
@@ -27,6 +28,7 @@ from mcts.analyzers.prompt_defense import PromptDefenseAnalyzer
 from mcts.analyzers.prompt_injection import PromptInjectionAnalyzer
 from mcts.analyzers.runtime_events import RuntimeEventsAnalyzer
 from mcts.analyzers.schema_surface import SchemaSurfaceAnalyzer
+from mcts.analyzers.scoping import ScopingAnalyzer
 from mcts.analyzers.semgrep_adapter import SemgrepAdapterAnalyzer
 from mcts.analyzers.sigma_dedupe import dedupe_sigma_findings
 from mcts.analyzers.sigma_metadata import SigmaMetadataAnalyzer
@@ -37,6 +39,7 @@ from mcts.analyzers.surface_metadata import SurfaceMetadataAnalyzer
 from mcts.analyzers.tool_abuse import ToolAbuseAnalyzer
 from mcts.analyzers.tool_shadowing import ToolShadowingAnalyzer
 from mcts.analyzers.toxic_flows import ToxicFlowAnalyzer
+from mcts.analyzers.transport_exposure import TransportExposureAnalyzer
 from mcts.analyzers.virustotal import VirusTotalAnalyzer
 from mcts.analyzers.vulnerable_package import VulnerablePackageAnalyzer
 from mcts.analyzers.yara_metadata import YaraMetadataAnalyzer
@@ -92,6 +95,9 @@ class Scanner:
             DataLeakageAnalyzer(),
             CommandExecutionAnalyzer(),
             PathValidationAnalyzer(),
+            NetworkEgressAnalyzer(),
+            TransportExposureAnalyzer(),
+            ScopingAnalyzer(),
             RuntimeEventsAnalyzer(),
             SigmaMetadataAnalyzer(sigma_rules_path=cfg.sigma_rules_path),
             OAuthConfigAnalyzer(target=cfg.target, inventory=self.inventory),
@@ -207,6 +213,9 @@ class Scanner:
 
         fuzz_note = self._merge_fuzz_findings(findings, analyzers_executed)
         scan_notes_pre = [fuzz_note] if fuzz_note else []
+        probe_note = self._protocol_probe_recommendation(findings)
+        if probe_note:
+            scan_notes_pre.append(probe_note)
 
         findings = dedupe_metadata_findings(findings)
         findings = dedupe_sigma_findings(findings)
@@ -397,6 +406,19 @@ class Scanner:
             self.config.surfaces,
             enabled=self.config.surface_scoped_analyzers,
         )
+
+    def _protocol_probe_recommendation(self, findings: list[Finding]) -> str | None:
+        if self.config.protocol_probe or self.config.remote_url:
+            return None
+        for finding in findings:
+            if finding.analyzer != "transport_exposure":
+                continue
+            if finding.evidence.get("rule_id") == "CAP-01":
+                return (
+                    "Static CAP-01 transport exposure detected — pass --remote-url and "
+                    "--protocol-probe for live HTTP validation (Phase 4)."
+                )
+        return None
 
     def _apply_filters(self, findings: list[Finding]) -> list[Finding]:
         rows = findings

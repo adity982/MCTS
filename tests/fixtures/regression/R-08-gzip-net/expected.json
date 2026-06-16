@@ -1,0 +1,8 @@
+{
+  "servers_path": "src/everything",
+  "package_depth": "full",
+  "surface_depth": "full",
+  "required_rule_ids": ["NET-03"],
+  "optional_rule_ids": ["NET-04"],
+  "note": "R-08 — gzip fetch without redirect:manual"
+}

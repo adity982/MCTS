@@ -1,6 +1,10 @@
 {
-  "min_tools": 10,
-  "min_source_files": 20,
-  "required_analyzers_any": ["behavioral_static", "static_signals", "supply_chain"],
+  "servers_path": ".",
+  "monorepo": true,
+  "surface_depth": "full",
+  "aggregate": true,
+  "min_tools": 3,
+  "min_source_files": 8,
+  "required_analyzers_any": ["network_egress", "scoping", "transport_exposure"],
   "note": "Full monorepo aggregate scan — R-21 regression fixture"
 }

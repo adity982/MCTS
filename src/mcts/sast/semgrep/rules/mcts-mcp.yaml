@@ -66,3 +66,33 @@ rules:
       technique_id: MCTS-T-1003
       category: command_execution
     pattern: eval(...)
+
+  - id: mcp-httpx-follow-redirects-no-guard
+    languages: [python]
+    message: httpx follow_redirects=True without redirect re-validation (NET-02)
+    severity: WARNING
+    metadata:
+      rule_id: NET-02
+      technique_id: MCTS-T-net-02
+      category: network_egress
+      analysis_depth: L1
+      finding_class: security
+    pattern-either:
+      - pattern: httpx.AsyncClient(..., follow_redirects=True, ...)
+      - pattern: httpx.AsyncClient(..., follow_redirects = True, ...)
+      - pattern: $CLIENT.get(..., follow_redirects=True, ...)
+      - pattern: $CLIENT.get(..., follow_redirects = True, ...)
+      - pattern: httpx.get(..., follow_redirects=True, ...)
+      - pattern: httpx.get(..., follow_redirects = True, ...)
+      - pattern: |
+          $CLIENT.get(
+            ...,
+            follow_redirects=True,
+            ...
+          )
+      - pattern: |
+          $CLIENT.get(
+            ...,
+            follow_redirects = True,
+            ...
+          )

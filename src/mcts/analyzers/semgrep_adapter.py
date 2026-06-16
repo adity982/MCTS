@@ -94,10 +94,11 @@ def _findings_from_payload(payload: dict, *, analyzer: str) -> list[Finding]:
         raw_sev = str(extra.get("severity") or "ERROR").upper()
         metadata = extra.get("metadata") if isinstance(extra.get("metadata"), dict) else {}
         technique_id = str(metadata.get("technique_id") or "MCTS-T-1003")
+        rule_id = str(metadata.get("rule_id") or check_id)
         line = int(start.get("line") or 0)
         col = int(start.get("col") or 0)
         slug = check_id.replace(".", "-").replace("/", "-")
-        findings.append(
+        builder = (
             FindingBuilder(
                 finding_id=f"semgrep-{slug}-{line}-{col}",
                 analyzer=analyzer,
@@ -110,7 +111,7 @@ def _findings_from_payload(payload: dict, *, analyzer: str) -> list[Finding]:
             .confidence(0.85)
             .location(path, line if line else None)
             .fact(
-                rule_id=check_id,
+                rule_id=rule_id,
                 match=message,
                 field="semgrep_match",
                 file=path or None,
@@ -118,12 +119,20 @@ def _findings_from_payload(payload: dict, *, analyzer: str) -> list[Finding]:
             )
             .evidence(
                 check_id=check_id,
+                rule_id=rule_id,
                 path=path,
                 semgrep_severity=raw_sev,
                 category=metadata.get("category"),
+                finding_class=metadata.get("finding_class"),
+                analysis_depth=metadata.get("analysis_depth"),
             )
-            .build()
         )
+        finding = builder.build()
+        if metadata.get("category") == "network_egress" or str(rule_id).startswith("NET-"):
+            from mcts.scoring.evidence_tags import tag_network_egress_finding
+
+            finding = tag_network_egress_finding(finding)
+        findings.append(finding)
     if not findings:
         for err in payload.get("errors") or []:
             if not isinstance(err, dict):

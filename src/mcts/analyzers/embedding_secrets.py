@@ -134,7 +134,7 @@ def _load_embedding_model() -> Any | None:
 
     try:
         from sentence_transformers import SentenceTransformer
-    except ImportError:
+    except (ImportError, ValueError, ModuleNotFoundError):
         _EMBEDDING_STATE.unavailable = True
         return None
 

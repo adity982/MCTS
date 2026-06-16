@@ -158,11 +158,7 @@ def test_servers_git_discovers_tools_and_auth01() -> None:
         )
     ).run()
     assert len(report.server.tools) >= 10
-    auth = [
-        f
-        for f in report.findings
-        if f.analyzer == "static_signals" and f.evidence.get("rule_id") == "AUTH-01"
-    ]
+    auth = [f for f in report.findings if f.analyzer == "scoping" and f.evidence.get("rule_id") == "AUTH-01"]
     assert auth
     assert report.score_v2 is not None and report.score_v2.security_score < 100
 

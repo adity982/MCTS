@@ -37,15 +37,18 @@ class SemgrepAdapterAnalyzer(BaseAnalyzer):
         self.timeout_seconds = timeout_seconds
 
     def analyze(self, server: MCPServerInfo) -> list[Finding]:
-        del server
-        if not self.target.exists():
+        targets = _semgrep_targets(self.target, server)
+        if not targets:
             return []
-        payload = run_semgrep_scan(self.target, self.rules_path, timeout=self.timeout_seconds)
+        payload = run_semgrep_scan(targets, self.rules_path, timeout=self.timeout_seconds)
         return _findings_from_payload(payload, analyzer=self.name)
 
 
-def run_semgrep_scan(target: Path, rules_path: Path, *, timeout: int = 120) -> dict:
+def run_semgrep_scan(targets: Path | list[Path], rules_path: Path, *, timeout: int = 120) -> dict:
     """Invoke semgrep CLI and return parsed JSON payload."""
+    target_list = [targets] if isinstance(targets, Path) else [path for path in targets if path.exists()]
+    if not target_list:
+        return {"results": [], "errors": [{"message": "no semgrep targets"}]}
     if not shutil.which("semgrep"):
         return {"results": [], "errors": [{"message": "semgrep CLI not found on PATH"}]}
     if not rules_path.exists():
@@ -57,7 +60,7 @@ def run_semgrep_scan(target: Path, rules_path: Path, *, timeout: int = 120) -> d
         "--quiet",
         "--config",
         str(rules_path),
-        str(target),
+        *[str(path) for path in target_list],
     ]
     try:
         proc = subprocess.run(
@@ -147,3 +150,15 @@ def _findings_from_payload(payload: dict, *, analyzer: str) -> list[Finding]:
             )
             break
     return findings
+
+
+def _semgrep_targets(scan_target: Path, server: MCPServerInfo) -> list[Path]:
+    """Prefer full discovery surface union over single entrypoint (DISC-04)."""
+    if server.source_files:
+        paths = sorted(Path(path) for path in server.source_files if not path.endswith("#mcp-block"))
+        existing = [path for path in paths if path.is_file()]
+        if existing:
+            return existing
+    if scan_target.exists():
+        return [scan_target]
+    return []

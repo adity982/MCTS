@@ -63,6 +63,31 @@ CALL_TOOL_NAME_PATTERN = re.compile(
     r"(?:params\.name\s*===\s*|case\s+)['\"]([^'\"]+)['\"]",
 )
 
+REGISTER_CONDITIONAL_TOOLS_PATTERN = re.compile(
+    r"registerConditionalTools\s*\(",
+    re.MULTILINE,
+)
+
+CONST_TOOL_NAME_PATTERN = re.compile(
+    r"const\s+name\s*=\s*['\"]([^'\"]+)['\"]",
+    re.MULTILINE,
+)
+
+REGISTER_TOOL_NAME_VAR_PATTERN = re.compile(
+    r"\.registerTool\s*\(\s*name\s*,",
+    re.MULTILINE,
+)
+
+CONFIG_DESCRIPTION_PATTERN = re.compile(
+    r"description\s*:\s*(['\"]{3}|['\"])(.*?)\1",
+    re.DOTALL,
+)
+
+REGISTER_FUNC_CALL_PATTERN = re.compile(
+    r"register([A-Z][A-Za-z0-9]*)Tool\s*\(\s*server\s*\)",
+    re.MULTILINE,
+)
+
 ZOD_TYPE_MAP = {
     "string": "string",
     "number": "number",
@@ -162,11 +187,7 @@ class JsStaticDiscovery:
         return self._parse_tools_from_content(file_path, content)
 
     def _parse_tools_from_content(self, file_path: Path, content: str) -> list[MCPTool]:
-        tools: list[MCPTool] = []
-        tools.extend(self._tools_from_register_and_tool_methods(file_path, content))
-        tools.extend(self._tools_from_list_handler(file_path, content))
-        tools.extend(self._tools_from_call_handler(file_path, content))
-        return tools
+        return parse_js_tools_from_content(file_path, content)
 
     def _tools_from_register_and_tool_methods(self, file_path: Path, content: str) -> list[MCPTool]:
         tools: list[MCPTool] = []
@@ -242,6 +263,91 @@ class JsStaticDiscovery:
             known.add(tool_name)
         return tools
 
+    def _tools_from_conditional_registration(self, file_path: Path, content: str) -> list[MCPTool]:
+        tools: list[MCPTool] = []
+        for match in REGISTER_CONDITIONAL_TOOLS_PATTERN.finditer(content):
+            paren_end = content.find(")", match.end())
+            if paren_end < 0:
+                continue
+            brace_start = content.find("{", paren_end)
+            if brace_start < 0:
+                continue
+            block = _extract_brace_block(content, brace_start)
+            if not block:
+                continue
+            line = content[: match.start()].count("\n") + 1
+            for pattern in (REGISTER_TOOL_PATTERN, TOOL_METHOD_PATTERN):
+                for tool_match in pattern.finditer(block):
+                    tool_name = tool_match.group(1)
+                    window = block[tool_match.start() : tool_match.start() + 1200]
+                    description = _first_match(DESCRIPTION_PATTERN, window) or ""
+                    schema = _schema_from_window(window)
+                    tool = MCPTool(
+                        name=tool_name,
+                        description=description,
+                        input_schema=schema,
+                        source_file=str(file_path),
+                        source_line=line,
+                        handler_snippet=block[:80],
+                        discovered_via="conditional-static",
+                    )
+                    tool.capability = infer_capability(tool)
+                    tools.append(tool)
+        return tools
+
+    def _tools_from_const_name_register(self, file_path: Path, content: str) -> list[MCPTool]:
+        if not REGISTER_TOOL_NAME_VAR_PATTERN.search(content):
+            return []
+        name_match = CONST_TOOL_NAME_PATTERN.search(content)
+        if not name_match:
+            return []
+        tool_name = name_match.group(1)
+        line = name_match.start()
+        line_no = content[:line].count("\n") + 1
+        desc_match = CONFIG_DESCRIPTION_PATTERN.search(content)
+        description = desc_match.group(2).strip() if desc_match else ""
+        snippet = _handler_snippet(content, line)
+        tool = MCPTool(
+            name=tool_name,
+            description=description,
+            source_file=str(file_path),
+            source_line=line_no,
+            handler_snippet=snippet,
+        )
+        tool.capability = infer_capability(tool)
+        return [tool]
+
+    def _tools_from_register_function_calls(self, file_path: Path, content: str) -> list[MCPTool]:
+        tools: list[MCPTool] = []
+        for match in REGISTER_FUNC_CALL_PATTERN.finditer(content):
+            tool_name = _tool_name_from_register_func(match.group(0))
+            if not tool_name:
+                continue
+            line = content[: match.start()].count("\n") + 1
+            discovered_via = "conditional-static" if "registerConditionalTools" in content else "static"
+            tool = MCPTool(
+                name=tool_name,
+                source_file=str(file_path),
+                source_line=line,
+                discovered_via=discovered_via,
+            )
+            tool.capability = infer_capability(tool)
+            tools.append(tool)
+        return tools
+
+
+def parse_js_tools_from_content(file_path: Path, content: str) -> list[MCPTool]:
+    """Parse MCP tools from TypeScript/JavaScript source."""
+    discovery = JsStaticDiscovery.__new__(JsStaticDiscovery)
+    tools: list[MCPTool] = []
+    tools.extend(discovery._tools_from_register_and_tool_methods(file_path, content))
+    tools.extend(discovery._tools_from_const_name_register(file_path, content))
+    tools.extend(discovery._tools_from_list_handler(file_path, content))
+    tools.extend(discovery._tools_from_call_handler(file_path, content))
+    tools.extend(discovery._tools_from_conditional_registration(file_path, content))
+    tools.extend(discovery._tools_from_register_function_calls(file_path, content))
+    return tools
+
 
 def _dedupe_tools(tools: list[MCPTool]) -> list[MCPTool]:
     by_name: dict[str, MCPTool] = {}
@@ -309,3 +415,11 @@ def _handler_snippet(content: str, start: int, max_lines: int = 40) -> str:
     line_start = content.rfind("\n", 0, start) + 1
     lines = content[line_start:].splitlines()[:max_lines]
     return "\n".join(lines)
+
+
+def _tool_name_from_register_func(call: str) -> str | None:
+    match = re.match(r"register([A-Z][A-Za-z0-9]*)Tool\s*\(", call)
+    if not match:
+        return None
+    core = match.group(1)
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "-", core).lower()

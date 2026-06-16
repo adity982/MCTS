@@ -23,6 +23,30 @@ MCP_FILE_INDICATORS = (
     ".tool(",
     "FastMCP",
     'Server("mcp")',
+    "@server.list_tools",
+    "@server.call_tool",
+    "list_tools()",
+    "call_tool()",
+)
+
+MCP_SERVER_TOOL_PATTERN = re.compile(
+    r"Tool\s*\(\s*name\s*=\s*['\"]([^'\"]+)['\"]\s*,\s*description\s*=\s*(['\"]{3}|['\"])(.*?)\2",
+    re.DOTALL,
+)
+
+MCP_SERVER_TOOL_ENUM_PATTERN = re.compile(
+    r"Tool\s*\(\s*name\s*=\s*(\w+)\.(\w+)\s*,\s*description\s*=\s*(['\"])(.*?)\3",
+    re.DOTALL,
+)
+
+PYTHON_ENUM_MEMBER_PATTERN = re.compile(
+    r"^\s+(\w+)\s*=\s*['\"]([^'\"]+)['\"]\s*$",
+    re.MULTILINE,
+)
+
+PYTHON_ENUM_CLASS_PATTERN = re.compile(
+    r"class\s+(\w+)\s*\([^)]*Enum[^)]*\):\s*\n((?:[ \t]+[^\n]+\n)+)",
+    re.MULTILINE,
 )
 
 DEFAULT_SKIP_PATH_PARTS = frozenset({"tests", "test"})
@@ -121,13 +145,10 @@ class StaticDiscovery:
         return self._parse_tools_from_content(file_path, content)
 
     def _parse_tools_from_content(self, file_path: Path, content: str) -> list[MCPTool]:
-        tools: list[MCPTool] = []
-        for match in TOOL_DECORATOR_PATTERN.finditer(content):
-            func_name = match.group(1)
-            tool = self._build_tool(file_path, content, func_name)
-            if tool:
-                tools.append(tool)
-        return tools
+        return parse_python_tools_from_content(file_path, content)
+
+    def _tools_from_mcp_server_pattern(self, file_path: Path, content: str) -> list[MCPTool]:
+        return _tools_from_mcp_server_pattern(file_path, content)
 
     def _build_tool(self, file_path: Path, content: str, func_name: str) -> MCPTool | None:
         try:
@@ -161,6 +182,67 @@ class StaticDiscovery:
             if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == func_name:
                 return ast.get_docstring(node) or ""
         return ""
+
+
+def parse_python_tools_from_content(file_path: Path, content: str) -> list[MCPTool]:
+    """Parse MCP tools from Python source (decorators + MCP Server list_tools)."""
+    tools: list[MCPTool] = []
+    discovery = StaticDiscovery.__new__(StaticDiscovery)
+    for match in TOOL_DECORATOR_PATTERN.finditer(content):
+        func_name = match.group(1)
+        tool = discovery._build_tool(file_path, content, func_name)
+        if tool:
+            tools.append(tool)
+    tools.extend(_tools_from_mcp_server_pattern(file_path, content))
+    return tools
+
+
+def _tools_from_mcp_server_pattern(file_path: Path, content: str) -> list[MCPTool]:
+    tools: list[MCPTool] = []
+    call_snippet = _call_tool_handler_snippet(content)
+    enum_map = _build_python_enum_map(content)
+    for match in MCP_SERVER_TOOL_PATTERN.finditer(content):
+        tool_name = match.group(1)
+        description = match.group(3).strip()
+        line = content[: match.start()].count("\n") + 1
+        tools.append(_mcp_server_tool(file_path, tool_name, description, line, call_snippet))
+    for match in MCP_SERVER_TOOL_ENUM_PATTERN.finditer(content):
+        enum_class, member, description = match.group(1), match.group(2), match.group(4).strip()
+        tool_name = enum_map.get(f"{enum_class}.{member}")
+        if not tool_name:
+            continue
+        line = content[: match.start()].count("\n") + 1
+        tools.append(_mcp_server_tool(file_path, tool_name, description, line, call_snippet))
+    return tools
+
+
+def _mcp_server_tool(
+    file_path: Path,
+    tool_name: str,
+    description: str,
+    line: int,
+    call_snippet: str,
+) -> MCPTool:
+    tool = MCPTool(
+        name=tool_name,
+        description=description,
+        source_file=str(file_path),
+        source_line=line,
+        handler_snippet=call_snippet or description[:800],
+    )
+    tool.capability = infer_capability(tool)
+    return tool
+
+
+def _build_python_enum_map(content: str) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for class_match in PYTHON_ENUM_CLASS_PATTERN.finditer(content):
+        enum_class = class_match.group(1)
+        body = class_match.group(2)
+        for member_match in PYTHON_ENUM_MEMBER_PATTERN.finditer(body):
+            member, value = member_match.group(1), member_match.group(2)
+            mapping[f"{enum_class}.{member}"] = value
+    return mapping
 
 
 def _schema_from_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, Any]:
@@ -211,3 +293,12 @@ def _handler_snippet(source: str, node: ast.FunctionDef | ast.AsyncFunctionDef, 
     if len(snippet_lines) > max_lines:
         snippet_lines = snippet_lines[:max_lines]
     return "\n".join(snippet_lines)
+
+
+def _call_tool_handler_snippet(content: str, max_lines: int = 80) -> str:
+    match = re.search(r"@server\.call_tool\(\)\s*\n\s*async def call_tool", content)
+    if not match:
+        return ""
+    line_start = content[: match.start()].count("\n")
+    lines = content.splitlines()[line_start : line_start + max_lines]
+    return "\n".join(lines)

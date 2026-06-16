@@ -146,6 +146,12 @@ class ScanConfig(BaseModel):
         ge=1,
         description="Truncate JSON report findings to this count (scan_notes records truncation)",
     )
+    # Monorepo / full-surface discovery (Phase 0 — DISC-01–07)
+    monorepo: bool = False
+    surface_depth: str | None = None
+    package_depth: str | None = None
+    aggregate: bool = False
+    include_test_surfaces: bool = False
 
     @classmethod
     def _validate_min_evidence_strength(cls, value: str | None) -> str | None:

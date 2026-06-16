@@ -26,6 +26,11 @@ SINK_CALLS: dict[str, str] = {
     "pickle.load": "pickle",
     "socket.socket": "socket",
     "Template": "Template",
+    "httpx.AsyncClient": "http_client",
+    "AsyncClient.get": "http_client",
+    "httpx.get": "http_client",
+    "aiohttp.ClientSession.get": "http_client",
+    "urllib.request.urlopen": "http_client",
 }
 
 NETWORK_ATTRS = frozenset({"get", "post", "put", "delete", "request", "urlopen"})
@@ -46,6 +51,13 @@ def analyze_handler_taint(source: str) -> TaintResult:
     params = _collect_params(tree)
     tainted: set[str] = set(params)
     for node in ast.walk(tree):
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                if item.optional_vars is None:
+                    continue
+                names = _assign_target_names(item.optional_vars)
+                if names and _is_http_client_context(item.context_expr):
+                    tainted.update(names)
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Name) and _expr_uses_tainted(node.value, tainted):
@@ -61,6 +73,20 @@ def analyze_handler_taint(source: str) -> TaintResult:
         if any(_expr_uses_tainted(arg, tainted) for arg in args):
             sinks.append(sink)
     return TaintResult(sinks=list(dict.fromkeys(sinks)), tainted_params=set(params))
+
+
+def _assign_target_names(node: ast.AST) -> set[str]:
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, ast.Tuple):
+        return {n.id for n in node.elts if isinstance(n, ast.Name)}
+    return set()
+
+
+def _is_http_client_context(expr: ast.AST) -> bool:
+    text = ast.unparse(expr) if hasattr(ast, "unparse") else ""
+    lowered = text.lower()
+    return "asyncclient" in lowered or "httpx" in lowered or "aiohttp" in lowered
 
 
 def _collect_params(tree: ast.AST) -> list[str]:
@@ -86,7 +112,19 @@ def _call_sink_name(func: ast.AST) -> str | None:
         if func.attr in NETWORK_ATTRS:
             base = _attr_dotted(func.value)
             if base in ("requests", "httpx", "urllib.request", "aiohttp"):
-                return f"{base}.{func.attr}"
+                return f"{base}.{func.attr}" if base != "httpx" else "http_client"
+            if base.endswith("AsyncClient") or base == "AsyncClient":
+                return "http_client"
+            if isinstance(func.value, ast.Name):
+                return "http_client"
+        if (
+            isinstance(func.value, ast.Attribute)
+            and func.value.attr == "AsyncClient"
+            and func.attr in NETWORK_ATTRS
+        ):
+            return "http_client"
+        if isinstance(func.value, ast.Name) and func.value.id == "httpx" and func.attr in NETWORK_ATTRS:
+            return "http_client"
         if func.attr == "from_string":
             base = _attr_dotted(func.value)
             if base in ("Environment", "jinja2.Environment"):

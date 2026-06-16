@@ -1,0 +1,6 @@
+{
+  "servers_path": "src/fetch",
+  "package_depth": "full",
+  "required_rule_ids": ["DUAL-02"],
+  "required_analyzers_any": ["dual_surface"]
+}

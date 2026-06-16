@@ -21,7 +21,7 @@ from mcts.analyzers.tpa_patterns import (
     has_mixed_scripts,
 )
 from mcts.mcp.models import MCPServerInfo, MCPTool
-from mcts.reporting.models import Finding, Severity
+from mcts.reporting.models import Finding, Severity, SourceLocation
 from mcts.scoring.evidence_tags import tag_prompt_injection_finding
 
 INSTRUCTION_LIKE = re.compile(
@@ -38,6 +38,7 @@ class PromptInjectionAnalyzer(BaseAnalyzer):
         findings: list[Finding] = []
         for surface in scan_surfaces(server):
             findings.extend(self._analyze_surface(server, surface))
+        findings.extend(self._scan_prompt_arg_injection(server))
         return [tag_prompt_injection_finding(f) for f in findings]
 
     def _analyze_surface(self, server: MCPServerInfo, surface: ScanSurface) -> list[Finding]:
@@ -237,3 +238,39 @@ class PromptInjectionAnalyzer(BaseAnalyzer):
             w in snippet for w in ("subprocess", "os.system", "eval", "delete", "shell=true")
         )
         return claims_safe and handler_dangerous
+
+    def _scan_prompt_arg_injection(self, server: MCPServerInfo) -> list[Finding]:
+        """POIS-04 — raw user argument interpolation in prompt templates."""
+        findings: list[Finding] = []
+        patterns = (
+            re.compile(r"\{arguments\[", re.MULTILINE),
+            re.compile(r"f[\"'].*\{[^}]*arguments", re.MULTILINE),
+            re.compile(r"`\$\{arguments", re.MULTILINE),
+        )
+        for path, content in server.source_files.items():
+            if not content or "get_prompt" not in content:
+                continue
+            for pattern in patterns:
+                match = pattern.search(content)
+                if not match:
+                    continue
+                line = content[: match.start()].count("\n") + 1
+                findings.append(
+                    build_analyzer_finding(
+                        finding_id=f"pois-04-{hash(path) & 0xFFFF}",
+                        analyzer=self.name,
+                        title="Raw user argument interpolation in prompt template",
+                        description="Prompt handler embeds user arguments without sanitization (POIS-04).",
+                        severity=Severity.HIGH,
+                        recommendation="Validate prompt arguments; avoid raw string interpolation.",
+                        rule_id="POIS-04",
+                        match=pattern.pattern,
+                        field="get_prompt",
+                        location=SourceLocation(file=path, line=line),
+                        technique_id="MCTS-T-pois-prompt-arg",
+                        confidence=0.7,
+                        extra_evidence={"finding_class": "security", "surface": "prompt"},
+                    )
+                )
+                break
+        return findings

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from mcts.analyzers.base import BaseAnalyzer
 from mcts.analyzers.finding_facts import build_analyzer_finding
 from mcts.analyzers.surface_context import is_intentional_context_surface, scan_surfaces
@@ -9,6 +11,13 @@ from mcts.analyzers.surfaces import ScanSurface, ScanSurfaceKind, parse_surfaces
 from mcts.analyzers.tpa_patterns import scan_text_poison, scan_text_templates
 from mcts.mcp.models import MCPServerInfo
 from mcts.reporting.models import Finding, Severity, SourceLocation
+from mcts.scoring.evidence_tags import tag_pois_finding
+
+_PROMPT_ARG_INTERPOLATION = (
+    re.compile(r"\{arguments\["),
+    re.compile(r"f[\"'].*\{[^}]*arguments"),
+    re.compile(r"`\$\{arguments"),
+)
 
 
 class SurfaceMetadataAnalyzer(BaseAnalyzer):
@@ -65,7 +74,35 @@ class SurfaceMetadataAnalyzer(BaseAnalyzer):
                     extra_evidence={"surface": surface.kind.value, "length": len(surface.description)},
                 )
             )
+        if surface.kind == ScanSurfaceKind.PROMPT:
+            findings.extend(self._check_prompt_arg_injection(surface, loc))
         return findings
+
+    def _check_prompt_arg_injection(self, surface: ScanSurface, loc: SourceLocation) -> list[Finding]:
+        """POIS-04 — raw user argument interpolation on discovered prompt surfaces."""
+        haystack = surface.extra_text or surface.description
+        if not haystack:
+            return []
+        for pattern in _PROMPT_ARG_INTERPOLATION:
+            if not pattern.search(haystack):
+                continue
+            finding = build_analyzer_finding(
+                finding_id=f"surface-pois-04-{surface.label}",
+                analyzer=self.name,
+                title=f"Raw user argument interpolation in prompt {surface.name}",
+                description="Prompt surface embeds user arguments without sanitization (POIS-04).",
+                severity=Severity.HIGH,
+                recommendation="Validate prompt arguments; avoid raw string interpolation.",
+                rule_id="POIS-04",
+                match=pattern.pattern,
+                field="prompt_template",
+                location=loc,
+                technique_id="MCTS-T-pois-prompt-arg",
+                confidence=0.7,
+                extra_evidence={"finding_class": "security", "surface": "prompt"},
+            )
+            return [tag_pois_finding(finding)]
+        return []
 
     def _finding(
         self,

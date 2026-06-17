@@ -236,3 +236,5 @@ class MatchedChain(BaseModel):
     trust_boundary_crossings: int = 0
     explanation: list[ExplanationStep] = Field(default_factory=list)
     legacy_finding_id: str | None = None
+    counterfactual_remediation: dict[str, Any] | None = None
+    recommended_fixes: list[dict[str, Any]] = Field(default_factory=list)

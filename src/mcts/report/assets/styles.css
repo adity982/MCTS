@@ -2909,6 +2909,53 @@ body.modal-open {
   marker-end: url(#arrowhead);
 }
 
+.graph-edge.policy {
+  stroke: rgba(148, 163, 184, 0.75);
+  stroke-dasharray: 5 4;
+}
+
+.graph-edge.inferred {
+  stroke: rgba(148, 163, 184, 0.45);
+}
+
+.graph-edge.runtime {
+  stroke: rgba(34, 197, 94, 0.7);
+}
+
+.graph-layer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.graph-layer-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.graph-layer-btn.active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.attack-path-fixes {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.attack-path-fixes ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
 /* Analyzers */
 .analyzer-grid {
   display: grid;

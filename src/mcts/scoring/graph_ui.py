@@ -22,6 +22,9 @@ def normalize_attack_graph_for_ui(graph: dict[str, Any]) -> dict[str, Any]:
                     "label": node.get("label") or _short_label(node.get("id", "")),
                     "type": node.get("kind", "tool"),
                     "kind": node.get("kind"),
+                    "layer": node.get("layer"),
+                    "trust": node.get("trust"),
+                    "sensitivity": node.get("sensitivity"),
                 }
             )
 
@@ -31,13 +34,18 @@ def normalize_attack_graph_for_ui(graph: dict[str, Any]) -> dict[str, Any]:
             continue
         src = edge.get("from_node") or edge.get("from")
         dst = edge.get("to_node") or edge.get("to")
+        policy = bool(edge.get("policy", False))
+        evidence_strength = edge.get("evidence_strength") or "static"
         edges.append(
             {
                 "from": src,
                 "to": dst,
                 "label": edge.get("label") or edge.get("kind", ""),
                 "kind": edge.get("kind"),
-                "policy": edge.get("policy", False),
+                "layer": edge.get("layer"),
+                "policy": policy,
+                "evidence_strength": evidence_strength,
+                "edge_class": "policy" if policy else _edge_class(evidence_strength),
             }
         )
 
@@ -56,8 +64,15 @@ def normalize_attack_graph_for_ui(graph: dict[str, Any]) -> dict[str, Any]:
                 "chain_risk_score": path.get("chain_risk_score"),
                 "explanation": path.get("explanation") or [],
                 "finding_ids": path.get("finding_ids") or [],
+                "recommended_fixes": path.get("recommended_fixes") or [],
+                "counterfactual_remediation": path.get("counterfactual_remediation"),
             }
         )
+
+    layers_present = graph.get("layers_present") or sorted(
+        {layer for node in nodes if (layer := node.get("layer"))}
+        | {layer for edge in edges if (layer := edge.get("layer"))}
+    )
 
     return {
         "version": version,
@@ -66,7 +81,8 @@ def normalize_attack_graph_for_ui(graph: dict[str, Any]) -> dict[str, Any]:
         "paths": paths,
         "templates_matched": graph.get("templates_matched") or [],
         "total_risk_score": graph.get("total_risk_score"),
-        "layers_present": graph.get("layers_present") or [],
+        "layers_present": layers_present,
+        "compression_stats": graph.get("compression_stats"),
     }
 
 
@@ -94,7 +110,21 @@ def format_attack_path_explanation(finding: Any) -> str:
                 lines.append(f"{idx}. {step.get('message', step)}")
             else:
                 lines.append(f"{idx}. {step}")
+    counterfactual = evidence.get("counterfactual_remediation")
+    if isinstance(counterfactual, dict) and counterfactual.get("actions"):
+        lines.append("Counterfactual fixes:")
+        for action in counterfactual.get("actions") or []:
+            if isinstance(action, dict):
+                lines.append(f"- {action.get('action', action)}")
     return "\n".join(lines) if lines else (finding.description or "")
+
+
+def _edge_class(evidence_strength: str) -> str:
+    if evidence_strength == "runtime":
+        return "runtime"
+    if evidence_strength == "heuristic":
+        return "inferred"
+    return "proven"
 
 
 def _short_label(node_id: str) -> str:

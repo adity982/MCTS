@@ -36,6 +36,8 @@ def run_doctor(
     deep: bool = False,
     json_output: bool = False,
     output: Path | None = None,
+    suggest_fixes: bool = False,
+    report: Path | None = None,
 ) -> int:
     """Run read-only preflight checks. Returns exit code (0 ok, 1 failures, 2 user error)."""
     root = path.expanduser().resolve()
@@ -112,12 +114,44 @@ def run_doctor(
     if deep:
         warnings += _check_optional_toolchain(checks)
 
+    fix_suggestions: list[dict] = []
+    if suggest_fixes:
+        if report is None:
+            checks.append(
+                (
+                    "warn",
+                    "Suggest fixes",
+                    "pass --report scan.json to list attack-graph remediations",
+                )
+            )
+            warnings += 1
+        elif not report.exists():
+            checks.append(("fail", "Suggest fixes", f"report not found: {report}"))
+            failures += 1
+        else:
+            from mcts.scoring.graph_suggest import suggest_fixes_from_report
+
+            fix_suggestions = suggest_fixes_from_report(report)
+            if fix_suggestions:
+                checks.append(
+                    (
+                        "pass",
+                        "Attack graph fixes",
+                        f"{len(fix_suggestions)} template(s) with remediations",
+                    )
+                )
+            else:
+                checks.append(("warn", "Attack graph fixes", "no matched templates in report"))
+                warnings += 1
+
     payload = {
         "path": str(root),
         "checks": [{"status": s, "label": label, "detail": d} for s, label, d in checks],
         "failures": failures,
         "warnings": warnings,
     }
+    if fix_suggestions:
+        payload["attack_graph_fix_suggestions"] = fix_suggestions
 
     if json_output or output is not None:
         import json
@@ -136,6 +170,12 @@ def run_doctor(
         for status, label, detail in checks:
             icon = {"pass": "[green]✓[/green]", "warn": "[yellow]⚠[/yellow]", "fail": "[red]✗[/red]"}[status]
             console.print(f"{icon} {escape(label)}: {escape(detail)}")
+        if fix_suggestions:
+            console.print("\n[bold]Attack graph suggested fixes[/bold]")
+            for row in fix_suggestions:
+                console.print(f"  [cyan]{escape(row['template_id'])}[/cyan] — {escape(row['title'])}")
+                for fix in row.get("recommended_fixes") or []:
+                    console.print(f"    • {escape(str(fix.get('description') or fix.get('kind', '')))}")
         if root.is_dir():
             hints = format_discovery_hints(root)
             if hints:

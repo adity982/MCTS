@@ -20,3 +20,66 @@ remove_env_tool:
   mutates:
     - remove_node:
         pattern: tool:get-env
+
+bind_localhost_only:
+  description: Bind HTTP/SSE listeners to 127.0.0.1 only
+
+disable_network_egress:
+  description: Remove or block outbound network tools and httpx/fetch sinks
+
+add_url_policy:
+  description: Enforce URL allowlist and block RFC1918/metadata hosts
+
+disable_prompt_egress:
+  description: Prevent prompt handlers from performing network egress
+
+disable_elicitation:
+  description: Disable client URL elicitation tools and CAP-05 surfaces
+
+require_user_confirmation:
+  description: Require explicit user confirmation before elicitation or sampling
+
+disable_sampling:
+  description: Disable client sampling capability exposure
+
+gate_sampling_behind_auth:
+  description: Require authenticated transport before sampling is enabled
+
+scope_git_tools:
+  description: Require repository allowlist on all git read tools
+
+add_repo_allowlist:
+  description: Add mandatory --repository / repo scope CLI flag
+
+atomic_open:
+  description: Open files with O_NOFOLLOW and atomic read-after-validate
+
+disable_symlink_follow:
+  description: Use lstat per directory entry; never follow symlinks on read
+
+isolate_read_and_exec_tools:
+  description: Split read and exec tools across trust boundaries or separate servers
+
+validate_inputs_before_exec:
+  description: Validate and sandbox shell/exec inputs before execution
+
+remove_egress_tool:
+  description: Remove webhook/fetch/egress tools from production surface
+
+scope_read_tools:
+  description: Restrict read tools to scoped roots and path allowlists
+
+block_credential_tools:
+  description: Remove get-env and credential-access tools from production
+
+use_resource_link_not_inline_blob:
+  description: Return resource links instead of inline session resource blobs
+
+cap_session_resources:
+  description: Cap session resource count and TTL; deny gzip-to-resource staging
+
+cap_memory_writes:
+  description: Limit memory graph write tools and observation size
+
+trust_model_documentation:
+  description: Document memory trust model and cross-session read risks

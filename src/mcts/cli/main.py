@@ -807,6 +807,20 @@ def scan(
             help="Disable chain multiplier (chain_factor=1.0); under v2/both the analyzer still runs",
         ),
     ] = False,
+    attack_graph_counterfactuals: Annotated[
+        bool,
+        typer.Option(
+            "--attack-graph-counterfactuals/--no-attack-graph-counterfactuals",
+            help="Attach counterfactual remediation to attack graph template findings (default on)",
+        ),
+    ] = True,
+    attack_graph_compress_ui: Annotated[
+        bool,
+        typer.Option(
+            "--attack-graph-compress-ui/--no-attack-graph-compress-ui",
+            help="Compress matched attack paths in report export for dashboard readability (default on)",
+        ),
+    ] = True,
     min_security_score: Annotated[
         int | None,
         typer.Option(
@@ -1077,6 +1091,8 @@ def scan(
         surface_scoped_analyzers=surface_scoped,
         scoring_mode=scoring.lower(),
         enable_attack_chains=not no_attack_chains,
+        attack_graph_enable_counterfactuals=attack_graph_counterfactuals,
+        attack_graph_compress_for_ui=attack_graph_compress_ui,
         min_security_score=min_security_score,
         max_absolute_risk=max_absolute_risk,
         max_risk_level=max_risk_level.lower() if max_risk_level else None,
@@ -2089,11 +2105,32 @@ def doctor(
         bool,
         typer.Option("--json", help="Emit machine-readable JSON"),
     ] = False,
+    suggest_fixes: Annotated[
+        bool,
+        typer.Option(
+            "--suggest-fixes",
+            help="List attack-graph template remediations from a prior scan report",
+        ),
+    ] = False,
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            help="Scan JSON report for --suggest-fixes (e.g. mcts_analysis/scan-report.json)",
+        ),
+    ] = None,
 ) -> None:
     """Preflight checks before your first scan (no live probes)."""
     from mcts.cli.doctor import run_doctor
 
-    code = run_doctor(path, deep=deep, json_output=json_output, output=output)
+    code = run_doctor(
+        path,
+        deep=deep,
+        json_output=json_output,
+        output=output,
+        suggest_fixes=suggest_fixes,
+        report=report,
+    )
     if code:
         raise typer.Exit(code=code)
 

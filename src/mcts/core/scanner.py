@@ -254,7 +254,11 @@ class Scanner:
             from mcts.scoring.attack_graph_builder import GraphBuilder
             from mcts.scoring.capability_overlap import emit_capability_overlap_findings
 
-            attack_graph_model = GraphBuilder(config=self.config).build(server_info, findings)
+            attack_graph_model = GraphBuilder(config=self.config).build(
+                server_info,
+                findings,
+                inventory=self.inventory,
+            )
             chain_findings = attack_graph_model.to_findings()
             findings.extend(chain_findings)
             raw_graph = attack_graph_model.to_report_dict(

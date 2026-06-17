@@ -32,6 +32,107 @@ def test_counterfactual_for_chain() -> None:
     assert payload["recommended_fixes"]
 
 
+def test_apply_fix_kind_remove_env_tool() -> None:
+    from mcts.scoring.attack_graph_models import EdgeKind, NodeKind
+    from mcts.scoring.graph_mutate import apply_fix_kind
+
+    graph = AttackGraph()
+    graph.seed_sources_and_sinks()
+    graph.add_node(NodeKind.TOOL, "get-env", label="get-env")
+    graph.add_edge(EdgeKind.READS, "tool:get-env", "sink:env")
+    mutated = apply_fix_kind(graph, "remove_env_tool")
+    assert "tool:get-env" not in mutated.nodes
+    assert not any(edge.from_node == "tool:get-env" for edge in mutated.edges.values())
+
+
+def test_simulate_remove_env_tool_eliminates_http_takeover() -> None:
+    from mcts.scoring.attack_graph_models import EdgeKind, GraphLayer, NodeKind
+    from mcts.scoring.graph_mutate import simulate_fix_eliminates_template
+    from mcts.scoring.graph_templates import load_chain_templates
+
+    graph = AttackGraph()
+    graph.seed_sources_and_sinks()
+    graph.add_node(NodeKind.TRANSPORT, "http", label="http", layer=GraphLayer.TRANSPORT)
+    graph.add_node(NodeKind.TOOL, "get-env", label="get-env")
+    graph.add_edge(
+        EdgeKind.EXPOSES,
+        "transport:http",
+        "tool:get-env",
+        layer=GraphLayer.TRANSPORT,
+        reachability=1.0,
+    )
+    graph.add_edge(EdgeKind.READS, "tool:get-env", "sink:env", reachability=1.0)
+    graph.add_edge(
+        EdgeKind.DELIVERS_TO_CONTEXT,
+        "tool:get-env",
+        "sink:model_context",
+        reachability=1.0,
+    )
+    template = next(t for t in load_chain_templates() if t.id == "HTTP_TAKEOVER")
+    assert simulate_fix_eliminates_template(graph, template, "remove_env_tool")
+    assert simulate_fix_eliminates_template(graph, template, "disable_http_transport")
+
+
+def test_inventory_layer_adds_cross_server_edges() -> None:
+    from mcts.inventory.models import InventoryEntry
+    from mcts.scoring.attack_graph_models import GraphLayer
+    from mcts.scoring.graph_inventory import attach_inventory_layer
+
+    graph = AttackGraph()
+    graph.seed_sources_and_sinks()
+    inventory = [
+        InventoryEntry(
+            client="cursor",
+            config_path="/a",
+            server_name="reader",
+            tools=["read_file"],
+        ),
+        InventoryEntry(
+            client="cursor",
+            config_path="/b",
+            server_name="writer",
+            tools=["write_file"],
+        ),
+    ]
+    attach_inventory_layer(graph, inventory)
+    inventory_edges = [edge for edge in graph.edges.values() if edge.layer == GraphLayer.INVENTORY]
+    assert inventory_edges
+    assert any(edge.label == "cross_server_read_write" for edge in inventory_edges)
+
+
+def test_counterfactual_includes_fix_simulation() -> None:
+    from mcts.scoring.attack_graph_models import EdgeKind, GraphLayer, NodeKind
+    from mcts.scoring.graph_mutate import clone_graph
+
+    graph = AttackGraph()
+    graph.seed_sources_and_sinks()
+    graph.add_node(NodeKind.TRANSPORT, "http", label="http", layer=GraphLayer.TRANSPORT)
+    graph.add_node(NodeKind.TOOL, "get-env", label="get-env")
+    graph.add_edge(
+        EdgeKind.EXPOSES,
+        "transport:http",
+        "tool:get-env",
+        layer=GraphLayer.TRANSPORT,
+        reachability=1.0,
+    )
+    graph.add_edge(EdgeKind.READS, "tool:get-env", "sink:env", reachability=1.0)
+    graph.add_edge(
+        EdgeKind.DELIVERS_TO_CONTEXT,
+        "tool:get-env",
+        "sink:model_context",
+        reachability=1.0,
+    )
+    payload = counterfactual_for_chain("HTTP_TAKEOVER", ["get-env"], graph=clone_graph(graph))
+    assert payload.get("fix_simulation")
+    assert "remove_env_tool" in payload.get("effective_fixes", [])
+
+
+def test_config_counterfactuals_and_compress_default_on() -> None:
+    config = ScanConfig(target=".")
+    assert config.attack_graph_enable_counterfactuals is True
+    assert config.attack_graph_compress_for_ui is True
+
+
 def test_compress_paths_dedupes() -> None:
     paths = [
         {"template_id": "A", "tools_on_path": ["t1"], "chain_risk_score": 1},
@@ -76,8 +177,8 @@ def test_graph_builder_attaches_recommended_fixes() -> None:
 def test_to_report_dict_compresses_when_requested() -> None:
     graph = AttackGraph()
     graph.matched_chains = []
-    report = graph.to_report_dict(compress_for_ui=False)
-    assert "compression_stats" not in report
+    report = graph.to_report_dict(compress_for_ui=True)
+    assert report.get("compression_stats") is not None
 
 
 def test_normalize_ui_includes_layers_and_edge_class() -> None:

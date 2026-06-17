@@ -810,17 +810,17 @@ def scan(
     attack_graph_counterfactuals: Annotated[
         bool,
         typer.Option(
-            "--attack-graph-counterfactuals",
-            help="Attach counterfactual remediation to attack graph template findings",
+            "--attack-graph-counterfactuals/--no-attack-graph-counterfactuals",
+            help="Attach counterfactual remediation to attack graph template findings (default on)",
         ),
-    ] = False,
+    ] = True,
     attack_graph_compress_ui: Annotated[
         bool,
         typer.Option(
-            "--attack-graph-compress-ui",
-            help="Compress matched attack paths in report export for dashboard readability",
+            "--attack-graph-compress-ui/--no-attack-graph-compress-ui",
+            help="Compress matched attack paths in report export for dashboard readability (default on)",
         ),
-    ] = False,
+    ] = True,
     min_security_score: Annotated[
         int | None,
         typer.Option(

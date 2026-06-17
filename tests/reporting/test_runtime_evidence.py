@@ -124,7 +124,7 @@ def test_collapse_template_severity_on_single_tool_fixture() -> None:
             collapse_template_severity=True,
         )
     ).run()
-    chains = [f for f in collapsed.findings if f.analyzer == "attack_chains"]
+    chains = [f for f in collapsed.findings if f.analyzer == "attack_graph"]
     assert chains
     assert chains[0].severity == Severity.MEDIUM
     assert chains[0].display_severity == Severity.MEDIUM
@@ -137,7 +137,7 @@ def test_collapse_template_severity_on_single_tool_fixture() -> None:
             collapse_template_severity=False,
         )
     ).run()
-    raw_chains = [f for f in raw.findings if f.analyzer == "attack_chains"]
+    raw_chains = [f for f in raw.findings if f.analyzer == "attack_graph"]
     assert raw_chains[0].severity == Severity.CRITICAL
     assert raw_chains[0].display_severity == Severity.MEDIUM
     assert raw.summary.critical >= 1

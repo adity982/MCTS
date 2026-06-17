@@ -27,7 +27,7 @@ TOOL_ANALYZERS = frozenset(
         "path_validation",
         "behavioral_static",
         "tool_shadowing",
-        "attack_chains",
+        "attack_graph",
         "data_leakage",
     }
 )
@@ -55,8 +55,6 @@ def analyzer_name(analyzer: object) -> str:
     name = getattr(analyzer, "name", None)
     if name:
         return str(name)
-    if type(analyzer).__name__ == "AttackChainAnalyzer":
-        return "attack_chains"
     return type(analyzer).__name__
 
 

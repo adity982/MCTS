@@ -12,6 +12,8 @@ DISPLAY_TITLES_ENFORCE: dict[str, str] = {
     "chain-credential-theft": "Potential capability overlap (credential + egress signals)",
     "chain-read-exfil": "Potential capability overlap (read + egress signals)",
     "chain-read-exec": "Potential capability overlap (read + execution signals)",
+    "chain-ssrf-exfil": "Potential capability overlap (network egress on single tool)",
+    "chain-ssrf-resource": "Potential capability overlap (network egress on single tool)",
 }
 
 _IMPACT_POINTS: dict[Severity, int] = {
@@ -32,7 +34,7 @@ _CHAIN_MULT: dict[int, float] = {0: 0.4, 1: 0.7, 2: 0.9, 3: 1.0}
 
 _HYGIENE_ANALYZERS = frozenset({"live_discovery", "static_discovery"})
 _HEURISTIC_ANALYZERS = frozenset(
-    {"attack_chains", "behavioral_static", "jailbreak", "llm_judge", "llm_metadata_triage"}
+    {"attack_chains", "attack_graph", "behavioral_static", "jailbreak", "llm_judge", "llm_metadata_triage"}
 )
 
 
@@ -58,7 +60,7 @@ def _validate_one(finding: Finding, ctx: ValidationContext) -> Finding:
     updates["finding_kind"] = _classify_kind(finding)
     updates["finding_type"] = _default_finding_type(finding)
 
-    if finding.analyzer == "attack_chains":
+    if finding.analyzer in {"attack_chains", "attack_graph"}:
         _validate_attack_chain(finding, ctx, updates)
     elif updates["finding_kind"] == "security":
         impact = finding.impact or finding.severity
@@ -87,9 +89,25 @@ def _validate_one(finding: Finding, ctx: ValidationContext) -> Finding:
     return finding.model_copy(update=updates)
 
 
+def _is_single_tool_template(finding: Finding) -> bool:
+    evidence = finding.evidence or {}
+    if not evidence.get("template_id"):
+        return False
+    for path in evidence.get("paths") or []:
+        if not isinstance(path, dict):
+            continue
+        tools = path.get("tools_on_path") or []
+        if len(set(tools)) <= 1:
+            return True
+    return False
+
+
 def _validate_attack_chain(finding: Finding, ctx: ValidationContext, updates: dict[str, Any]) -> None:
-    proven_path = _has_proven_path(finding, ctx.attack_graph)
     overlap_single, _ = _single_tool_overlap(finding.evidence)
+    single_tool_template = _is_single_tool_template(finding)
+    proven_path = (
+        _has_proven_path(finding, ctx.attack_graph) and not overlap_single and not single_tool_template
+    )
 
     if proven_path:
         chain_level = _chain_level_from_path(finding.id, finding.evidence, ctx.attack_graph)
@@ -116,7 +134,7 @@ def _validate_attack_chain(finding: Finding, ctx: ValidationContext, updates: di
     evidence["path_status"] = "unproven"
     evidence.pop("hop_count", None)
     evidence.pop("path", None)
-    if overlap_single:
+    if overlap_single or single_tool_template:
         evidence["single_tool_overlap"] = True
 
     updates.update(
@@ -148,7 +166,7 @@ def _classify_kind(finding: Finding) -> str:
 def _default_finding_type(finding: Finding) -> str:
     if finding.finding_type:
         return finding.finding_type
-    if finding.analyzer == "attack_chains":
+    if finding.analyzer in {"attack_chains", "attack_graph"}:
         return "heuristic"
     return "inferred"
 
@@ -164,6 +182,13 @@ def _single_tool_overlap(evidence: dict[str, Any]) -> tuple[bool, list[str]]:
 
 
 def _has_proven_path(finding: Finding, attack_graph: dict[str, Any]) -> bool:
+    evidence = finding.evidence or {}
+    if evidence.get("path_proven") is True:
+        return True
+    if evidence.get("template_id"):
+        for path in evidence.get("paths") or []:
+            if isinstance(path, dict) and path.get("hop_count", 0) >= 1:
+                return True
     for path in attack_graph.get("paths") or []:
         if not isinstance(path, dict):
             continue

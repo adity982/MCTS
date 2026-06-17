@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mcts.analyzers.attack_chains import AttackChainAnalyzer
 from mcts.analyzers.semgrep_adapter import _findings_from_payload
 from mcts.analyzers.supply_chain import SupplyChainAnalyzer
 from mcts.analyzers.toxic_flows import analyze_inventory
 from mcts.inventory.models import InventoryEntry
 from mcts.mcp.models import CapabilityProfile, MCPServerInfo, MCPTool
 from mcts.reporting.models import Severity
+from mcts.scoring.capability_overlap import emit_capability_overlap_findings
 
 
 def test_attack_chains_emit_facts() -> None:
@@ -24,9 +24,10 @@ def test_attack_chains_emit_facts() -> None:
         ),
         source_file="server.py",
     )
-    findings = AttackChainAnalyzer().analyze(MCPServerInfo(tools=[tool]))
+    findings = emit_capability_overlap_findings(MCPServerInfo(tools=[tool]))
     assert findings
     for finding in findings:
+        assert finding.analyzer == "attack_graph"
         facts = (finding.evidence or {}).get("facts")
         assert isinstance(facts, list) and len(facts) >= 1
 

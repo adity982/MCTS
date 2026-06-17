@@ -7,7 +7,7 @@ from mcts.reporting.models import Finding, Severity
 def _chain_finding(**evidence) -> Finding:
     return Finding(
         id="chain-credential-theft",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         title="Credential theft chain possible",
         description="overlap",
         severity=Severity.CRITICAL,
@@ -52,7 +52,21 @@ def test_warn_mode_caps_without_title_rewrite() -> None:
 
 
 def test_proven_path_keeps_display_severity() -> None:
-    finding = _chain_finding(hop_count=2, path=["a", "b", "c"])
+    finding = Finding(
+        id="chain-credential-theft",
+        analyzer="attack_graph",
+        title="Credential theft chain possible",
+        description="overlap",
+        severity=Severity.CRITICAL,
+        recommendation="fix",
+        evidence={
+            "read_tools": ["read_file"],
+            "credential_tools": ["get_creds"],
+            "exfil_tools": ["send_webhook"],
+            "hop_count": 2,
+            "path": ["read_file", "get_creds", "send_webhook"],
+        },
+    )
     graph = {
         "paths": [
             {
@@ -72,7 +86,7 @@ def test_proven_path_keeps_display_severity() -> None:
 def test_multi_tool_overlap_capped_without_proven_path() -> None:
     finding = Finding(
         id="chain-read-exec",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         title="Read → command execution chain possible",
         description="overlap",
         severity=Severity.CRITICAL,

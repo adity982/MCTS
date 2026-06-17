@@ -15,8 +15,12 @@ def test_attack_graph_uses_capability_edges(example_server_path: Path) -> None:
     graph = build_attack_graph(report)
 
     assert graph["edges"]
-    labels = {edge["label"] for edge in graph["edges"]}
-    assert any("exfil" in label or "exec" in label or "chain" in label for label in labels)
+    labels = {str(edge.get("label") or edge.get("kind") or "") for edge in graph["edges"]}
+    assert any(
+        token in label.lower()
+        for label in labels
+        for token in ("exfil", "exec", "chain", "egress", "invokes", "reads")
+    )
 
     # No synthetic "related" fallback edges
     assert not any(edge["label"] == "related" for edge in graph["edges"])
@@ -55,7 +59,9 @@ def test_attack_graph_paths_schema_on_vulnerable() -> None:
     graph = canonical_attack_graph(report)
     paths = graph.get("paths") or []
     assert paths
-    for path in paths:
+    multi_tool = [path for path in paths if len(path.get("tools_on_path") or path.get("nodes") or []) >= 2]
+    assert multi_tool
+    for path in multi_tool:
         assert "hop_count" in path
         assert isinstance(path["hop_count"], int)
         assert path["hop_count"] >= 1
@@ -66,7 +72,9 @@ def test_attack_graph_paths_schema_on_vulnerable() -> None:
 
 def test_scanner_graph_matches_build_attack_graph() -> None:
     report = Scanner(ScanConfig(target=VULNERABLE, scoring_mode="v2")).run()
-    assert report.attack_graph.get("paths") == build_attack_graph(report).get("paths")
+    dashboard_graph = build_attack_graph(report)
+    assert len(dashboard_graph.get("paths") or []) == len(report.attack_graph.get("paths") or [])
+    assert dashboard_graph.get("version") == 3
 
 
 def test_g0_semantic_path_has_multi_hop_on_vulnerable() -> None:

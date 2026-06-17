@@ -109,7 +109,11 @@ def build_paths(graph: dict[str, Any], chain_findings: list[Finding]) -> list[Pa
 
 
 def _has_chain_findings(findings: list[Finding]) -> bool:
-    return any(f.analyzer == "attack_chains" for f in findings)
+    return any(f.analyzer in {"attack_chains", "attack_graph"} for f in findings)
+
+
+def _is_chain_meta_finding(finding: Finding) -> bool:
+    return finding.analyzer in {"attack_chains", "attack_graph"}
 
 
 def _build_graph_from_chain_findings(findings: list[Finding]) -> dict[str, Any]:
@@ -117,7 +121,7 @@ def _build_graph_from_chain_findings(findings: list[Finding]) -> dict[str, Any]:
     nodes: dict[str, dict[str, str]] = {}
     edges: list[dict[str, str]] = []
     for finding in findings:
-        if finding.analyzer != "attack_chains":
+        if not _is_chain_meta_finding(finding):
             continue
         evidence = finding.evidence
         tool_names: list[str] = []
@@ -166,7 +170,7 @@ def canonical_attack_graph_from_scan(
         base = _build_graph_from_chain_findings(findings)
     else:
         base = {}
-    chain_findings = [f for f in findings if f.analyzer == "attack_chains"]
+    chain_findings = [f for f in findings if _is_chain_meta_finding(f)]
     paths = build_paths(base, chain_findings) if base else []
     return {**base, "paths": paths}
 

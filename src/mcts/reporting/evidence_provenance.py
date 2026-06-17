@@ -55,11 +55,19 @@ def _enrich_one(
     ctx: ValidationContext,
     tools_by_name: dict[str, MCPTool],
 ) -> Finding:
-    if finding.analyzer == "attack_chains":
+    if finding.analyzer in {"attack_chains", "attack_graph"}:
         evidence = dict(finding.evidence or {})
         tool_names = _chain_tool_names(evidence)
         matched_tools = [tools_by_name[name] for name in tool_names if name in tools_by_name]
         facts = _facts_from_tools(matched_tools)
+        existing_facts = evidence.get("facts")
+        if not facts and isinstance(existing_facts, list) and existing_facts:
+            facts = list(existing_facts)
+        elif isinstance(existing_facts, list):
+            seen_ids = {str(f.get("rule_id")) for f in facts}
+            for item in existing_facts:
+                if isinstance(item, dict) and str(item.get("rule_id")) not in seen_ids:
+                    facts.append(item)
         interpretation = _interpretation(finding, evidence, matched_tools, tool_names)
         confidence_factors = _confidence_factors(finding, evidence, matched_tools, facts)
         counterfactual = _counterfactual_remediation(matched_tools, facts)
@@ -165,6 +173,16 @@ def _chain_tool_names(evidence: dict[str, Any]) -> list[str]:
         raw = evidence.get(key, [])
         if isinstance(raw, list):
             names.extend(str(item) for item in raw)
+    for path in evidence.get("paths") or []:
+        if not isinstance(path, dict):
+            continue
+        raw = path.get("tools_on_path") or []
+        if isinstance(raw, list):
+            for item in raw:
+                token = str(item)
+                if token.startswith("tool:"):
+                    token = token.split(":", 1)[1]
+                names.append(token)
     seen: set[str] = set()
     ordered: list[str] = []
     for name in names:

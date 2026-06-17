@@ -17,7 +17,7 @@ Legacy scoring (`score.overall`) uses severity-only exponential decay. Clients n
 | Chain meta-findings in v2 sum | **Exclude** — `attack_chains` in `NON_SCORING_V2` |
 | Chain multiplier | `paths_v1` tool correlation on validated paths (`medium+` severity) |
 | `hop_count` | `len(path_nodes) - 1` on edge-validated paths |
-| Analyzer when v2 on | Always run `AttackChainAnalyzer`; bypass `--analyzers` / `--surfaces` |
+| Analyzer when v2 on | Always run attack graph v3 (`GraphBuilder`); bypass `--analyzers` / `--surfaces` for chain templates |
 | `chain_factor` gating | `enable_attack_chains` / `--no-attack-chains` sets `chain_factor_mode: disabled` |
 | `weights_hash` | `ScoreV2Basis.weights_hash` only — not on `RiskScoreV2` |
 | API score gates | CLI enforces exit codes; API returns `gate_violations` array without HTTP gate exit (v2.0) |

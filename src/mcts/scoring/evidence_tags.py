@@ -297,7 +297,7 @@ def enrich_graph_dependent_evidence(
     paths = graph.get("paths") or []
     out: list[Finding] = []
     for finding in findings:
-        if finding.analyzer == "attack_chains":
+        if finding.analyzer in {"attack_chains", "attack_graph"}:
             evidence = dict(finding.evidence or {})
             for path in paths:
                 finding_ids = path.get("finding_ids") or []

@@ -1,0 +1,7 @@
+{
+  "servers_path": "src/everything/tools/trigger-url-elicitation.ts",
+  "package_depth": "full",
+  "required_rule_ids": ["CAP-05"],
+  "optional_rule_ids": ["CAP-06"],
+  "note": "R-23 — trigger-url-elicitation tool enables ELICIT_PHISH chain template"
+}

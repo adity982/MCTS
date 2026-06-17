@@ -22,7 +22,11 @@ _INTERMEDIATE_SINKS = frozenset({"sink:env", "sink:disk", "sink:cross_session", 
 
 
 def _edge_stays_on_tool(edge: GraphEdge) -> bool:
-    return edge.to_node in _INTERMEDIATE_SINKS or edge.to_node.startswith(("resource:", "source:"))
+    if edge.to_node in _INTERMEDIATE_SINKS:
+        return True
+    if edge.to_node.startswith("source:"):
+        return True
+    return edge.to_node.startswith("resource:") and edge.kind == EdgeKind.READS
 
 
 _EDGE_KIND_ORDER = {
@@ -54,12 +58,12 @@ def enumerate_paths(
     stack: list[tuple[str, list[GraphEdge], set[str], set[str]]] = [(start, [], {start}, set())]
     while stack:
         node, edges, visited, used_edge_ids = stack.pop()
-        if edges and is_path_terminal(node):
-            yield build_path_from_edges(start, edges)
-            continue
         if len(edges) >= max_depth:
             continue
         out_edges = _sorted_out_edges(graph, node)
+        if edges and (is_path_terminal(node) or not out_edges):
+            yield build_path_from_edges(start, edges)
+            continue
         intermediate = [e for e in out_edges if _edge_stays_on_tool(e)]
         non_terminal = [
             e for e in out_edges if not _edge_stays_on_tool(e) and not is_path_terminal(e.to_node)

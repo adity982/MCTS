@@ -1,0 +1,24 @@
+id: PROMPT_BYPASS
+title: Prompt surface egress bypasses tool controls
+severity: high
+finding_class: security
+min_confidence: 0.6
+min_reachability: 0.25
+max_depth: 4
+exploit_cost: 3
+anchor:
+  first_edge: EGRESS
+layers:
+  - dataflow
+  - trust_boundary
+edge_pattern:
+  - kind: EGRESS
+    from_kind: prompt
+  - kind: DELIVERS_TO_CONTEXT
+    to: sink:model_context
+recommended_fixes:
+  - disable_prompt_egress
+  - add_url_policy
+explanation_steps:
+  - "Prompt surface performs outbound network access."
+  - "Fetched content is delivered to model context."

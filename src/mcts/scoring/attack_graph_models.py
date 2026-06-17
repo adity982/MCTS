@@ -191,6 +191,8 @@ class GraphEdge(BaseModel):
             )
         if other.label and not self.label:
             self.label = other.label
+        if other.layer == GraphLayer.TRUST_BOUNDARY and self.layer == GraphLayer.DATAFLOW:
+            self.layer = GraphLayer.TRUST_BOUNDARY
         seen = {(e.rule_id, e.analyzer, e.finding_id) for e in self.evidence}
         for item in other.evidence:
             key = (item.rule_id, item.analyzer, item.finding_id)

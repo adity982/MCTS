@@ -1,0 +1,25 @@
+id: CRED_THEFT
+title: Credential theft via read and egress
+severity: critical
+finding_class: security
+min_confidence: 0.6
+min_reachability: 0.25
+max_depth: 6
+exploit_cost: 3
+anchor:
+  first_edge: READS
+layers:
+  - dataflow
+edge_pattern:
+  - kind: READS
+    from_kind: tool
+  - kind: INVOKES
+  - kind: EGRESS
+legacy_finding_id: chain-credential-theft
+explanation_steps:
+  - "Tool reads untrusted input."
+  - "Credential-access tool exposes sensitive data."
+  - "Egress tool can exfiltrate captured credentials."
+recommended_fixes:
+  - block_credential_tools
+  - remove_egress_tool

@@ -41,12 +41,12 @@ def test_finding_builder_requires_bronze_fact() -> None:
 
 
 def test_rule_stability_defaults_by_analyzer() -> None:
-    assert default_rule_stability("attack_chains") == "heuristic"
+    assert default_rule_stability("attack_graph") == "heuristic"
     assert default_rule_stability("prompt_injection") == "mature"
     row = apply_rule_stability(
         Finding(
             id="x",
-            analyzer="attack_chains",
+            analyzer="attack_graph",
             title="t",
             description="d",
             severity=Severity.MEDIUM,
@@ -58,11 +58,8 @@ def test_rule_stability_defaults_by_analyzer() -> None:
 
 def test_non_chain_security_findings_get_priority_score_on_fixture() -> None:
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="enforce")).run()
-    security = [
-        f
-        for f in report.findings
-        if f.analyzer not in ("attack_chains", "compliance", "live_discovery", "static_discovery")
-    ]
+    _NON_CHAIN = ("attack_chains", "attack_graph", "compliance", "live_discovery", "static_discovery")
+    security = [f for f in report.findings if f.analyzer not in _NON_CHAIN]
     assert security
     assert all(f.priority_score is not None for f in security)
 

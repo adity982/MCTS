@@ -195,7 +195,7 @@ def test_attack_chains_excluded_from_scorable() -> None:
     findings = [
         Finding(
             id="chain",
-            analyzer="attack_chains",
+            analyzer="attack_graph",
             title="Chain",
             description="d",
             severity=Severity.CRITICAL,

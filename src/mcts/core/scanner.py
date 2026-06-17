@@ -7,7 +7,6 @@ from typing import Any
 
 from mcts import __version__
 from mcts.analyzers.annotation_honesty import AnnotationHonestyAnalyzer
-from mcts.analyzers.attack_chains import AttackChainAnalyzer
 from mcts.analyzers.behavioral_static import BehavioralStaticAnalyzer
 from mcts.analyzers.cloud_inspect import CloudInspectAnalyzer
 from mcts.analyzers.command_execution import CommandExecutionAnalyzer
@@ -93,7 +92,6 @@ class Scanner:
         self.config = config
         self.client = MCPClient(config.target, config)
         self.inventory = inventory or []
-        self.attack_chains = AttackChainAnalyzer()
         self.analyzers = self._build_analyzers()
         self.compliance = ComplianceChecker()
         self.scoring = RiskScoringEngine()
@@ -137,7 +135,6 @@ class Scanner:
             MetadataDiffAnalyzer(baseline_path=cfg.baseline_path),
             JailbreakAnalyzer(),
             CrossServerAnalyzer(inventory=self.inventory),
-            self.attack_chains,
         ]
         if len(self.inventory) >= 2:
             rows.append(ToxicFlowAnalyzer(inventory=self.inventory))
@@ -255,16 +252,27 @@ class Scanner:
         raw_graph: dict[str, Any] = {}
         if self.config.attack_graph_version >= 3:
             from mcts.scoring.attack_graph_builder import GraphBuilder
+            from mcts.scoring.capability_overlap import emit_capability_overlap_findings
 
             attack_graph_model = GraphBuilder(config=self.config).build(server_info, findings)
             chain_findings = attack_graph_model.to_findings()
             findings.extend(chain_findings)
             raw_graph = attack_graph_model.to_report_dict()
-            if self.config.attack_graph_legacy_chains:
-                legacy = self.attack_chains.analyze(server_info)
-                findings.extend(legacy)
-        elif "attack_chains" in analyzers_executed:
-            raw_graph = self.attack_chains.last_graph
+            proven_legacy = {
+                chain.legacy_finding_id
+                for chain in attack_graph_model.matched_chains
+                if chain.legacy_finding_id
+            }
+            overlap = emit_capability_overlap_findings(server_info)
+            findings.extend(f for f in overlap if f.id not in proven_legacy)
+            if "attack_graph" not in analyzers_executed:
+                analyzers_executed.append("attack_graph")
+        elif self.config.enable_attack_chains:
+            from mcts.scoring.capability_overlap import emit_capability_overlap_findings
+
+            findings.extend(emit_capability_overlap_findings(server_info))
+            if "attack_graph" not in analyzers_executed:
+                analyzers_executed.append("attack_graph")
         _trace_pipeline("graph")
 
         scan_scope = infer_scan_scope(self.config)
@@ -436,12 +444,6 @@ class Scanner:
         name = type(analyzer).__name__
         if name == "JailbreakAnalyzer":
             return self.config.enable_jailbreak
-        if name == "AttackChainAnalyzer":
-            if self.config.attack_graph_version >= 3 and not self.config.attack_graph_legacy_chains:
-                return False
-            if self.config.scoring_mode in {"v2", "both"}:
-                return True
-            return self.config.enable_attack_chains
         if name == "MetadataDiffAnalyzer":
             return self.config.baseline_path is not None
         if name == "EmbeddingSecretsAnalyzer":
@@ -451,8 +453,6 @@ class Scanner:
         return True
 
     def _analyzer_allowed(self, analyzer: object) -> bool:
-        if self.config.scoring_mode in {"v2", "both"} and getattr(analyzer, "name", None) == "attack_chains":
-            return True
         if self.config.analyzers:
             name = getattr(analyzer, "name", type(analyzer).__name__)
             if name not in self.config.analyzers and type(analyzer).__name__ not in self.config.analyzers:

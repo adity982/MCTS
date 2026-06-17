@@ -38,7 +38,7 @@ def test_command_execution_exploitability_class() -> None:
 def test_attack_chains_path_hop_count_from_graph() -> None:
     finding = Finding(
         id="chain-credential-theft",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         title="Chain",
         description="d",
         severity=Severity.CRITICAL,

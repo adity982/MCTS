@@ -18,7 +18,7 @@ SINGLE_TOOL = Path("examples/single-tool-agent-server/server.py")
 def test_category_gates_use_display_when_enforce() -> None:
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="enforce")).run()
     template_failures = category_gate_failures(report.findings, {"attack_chains": 0}, use_display=False)
-    display_failures = category_gate_failures(report.findings, {"attack_chains": 10}, use_display=True)
+    display_failures = category_gate_failures(report.findings, {"attack_chains": 15}, use_display=True)
     assert template_failures
     assert not display_failures
 
@@ -28,7 +28,7 @@ def test_fail_on_category_gate_passes_under_enforce_on_overlap_fixture() -> None
     config = ScanConfig(
         target=SINGLE_TOOL,
         findings_trust_mode="enforce",
-        fail_on_category={"attack_chains": 10},
+        fail_on_category={"attack_chains": 15},
     )
     assert evaluate_scan_gate_violations(report, config) == []
 

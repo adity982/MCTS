@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 1–2 security regression runner (R-01–R-22)."""
+"""Phase 1–2 security regression runner (R-01–R-23)."""
 
 from __future__ import annotations
 
@@ -113,6 +113,7 @@ def main() -> int:
         "R-19-memory-poison",
         "R-20-git-readme",
         "R-22-streamable-get-env",
+        "R-23-elicitation-phish",
         "MCTS-T-monorepo-servers",
     ]
 

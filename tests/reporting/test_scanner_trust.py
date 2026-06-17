@@ -32,7 +32,7 @@ def test_scanner_trust_off_leaves_display_summary_empty() -> None:
 
 def test_single_tool_overlap_fixture_zero_display_critical() -> None:
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="enforce")).run()
-    chains = [f for f in report.findings if f.analyzer == "attack_chains"]
+    chains = [f for f in report.findings if f.analyzer == "attack_graph"]
     assert chains, "expected attack chain findings on single-tool overlap fixture"
     assert report.display_summary is not None
     assert report.display_summary.critical == 0

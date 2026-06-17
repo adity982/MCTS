@@ -102,8 +102,13 @@ ANALYZER_CATALOG: dict[str, tuple[str, str, tuple[str, ...]]] = {
         ("MCTS-T-1008",),
     ),
     "attack_chains": (
-        "Builds multi-step attack paths from tool capabilities.",
+        "Builds multi-step attack paths from tool capabilities (legacy key).",
         "Read → exfil, read → exec, and credential chain combinations.",
+        ("MCTS-T-1005",),
+    ),
+    "attack_graph": (
+        "Template-matched attack paths from the v3 attack graph engine.",
+        "YAML chain templates, proven paths, and capability overlap fallbacks.",
         ("MCTS-T-1005",),
     ),
     "prompt_defense": (

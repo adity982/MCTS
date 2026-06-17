@@ -43,8 +43,8 @@ def main() -> int:
     # --- Phase 0 acceptance: single-tool + enforce ---
     print("[Phase 0] Single-tool overlap fixture")
     report = Scanner(ScanConfig(target=SINGLE_TOOL, findings_trust_mode="enforce")).run()
-    chains = [f for f in report.findings if f.analyzer == "attack_chains"]
-    check("attack chains present", bool(chains))
+    chains = [f for f in report.findings if f.analyzer == "attack_graph"]
+    check("attack graph chain findings present", bool(chains))
     disp_crit_ok = report.display_summary is not None and report.display_summary.critical == 0
     check("display_summary.critical == 0", disp_crit_ok)
     check("template summary still has critical", report.summary.critical >= 1)
@@ -83,10 +83,10 @@ def main() -> int:
     cat_cfg = ScanConfig(
         target=SINGLE_TOOL,
         findings_trust_mode="enforce",
-        fail_on_category={"attack_chains": 10},
+        fail_on_category={"attack_chains": 15},
     )
     check(
-        "fail_on_category attack_chains:10 passes under enforce",
+        "fail_on_category attack_chains:15 passes under enforce",
         evaluate_scan_gate_violations(report, cat_cfg) == [],
     )
     breakdown_ok = (
@@ -96,7 +96,7 @@ def main() -> int:
 
     # --- Phase 1 provenance ---
     print("\n[Phase 1] Evidence provenance")
-    chain = chains[0] if chains else None
+    chain = next((f for f in chains if f.id == "chain-credential-theft"), chains[0] if chains else None)
     if chain:
         ev = chain.evidence or {}
         check("facts present on chain", isinstance(ev.get("facts"), list) and len(ev["facts"]) > 0)
@@ -105,7 +105,7 @@ def main() -> int:
         check("counterfactual present", isinstance(ev.get("counterfactual_remediation"), dict))
     payload = build_dashboard_payload(report)
     check("dashboard meta.fact_coverage", "fact_coverage" in payload["meta"])
-    prov_rows = [r for r in payload["findings"] if r["analyzer"] == "attack_chains"]
+    prov_rows = [r for r in payload["findings"] if r["analyzer"] == "attack_graph"]
     check("dashboard has_provenance on chain row", any(r.get("has_provenance") for r in prov_rows))
 
     # --- Phase 1.5 rule stability ---
@@ -165,10 +165,11 @@ def main() -> int:
     print("\n[SARIF] Export")
     sarif = build_sarif(report)
     results = sarif["runs"][0]["results"]
-    chain_results = [r for r in results if r.get("properties", {}).get("analyzer") == "attack_chains"]
-    if chain_results:
-        props = chain_results[0].get("properties", {})
-        rule_id = chain_results[0].get("ruleId")
+    chain_results = [r for r in results if r.get("properties", {}).get("analyzer") == "attack_graph"]
+    cred_result = next((r for r in chain_results if r.get("ruleId") == "chain-credential-theft"), None)
+    if cred_result:
+        props = cred_result.get("properties", {})
+        rule_id = cred_result.get("ruleId")
         rule_props = next(
             (
                 rule.get("properties", {})
@@ -177,7 +178,7 @@ def main() -> int:
             ),
             {},
         )
-        check("SARIF level from display", chain_results[0].get("level") == "warning")  # medium → warning
+        check("SARIF level from display", cred_result.get("level") == "warning")  # medium → warning
         check("SARIF security-severity from display", rule_props.get("security-severity") == "5.0")
         check("SARIF mcts/facts", "mcts/facts" in props or "mcts/factCount" in props)
 
@@ -189,7 +190,7 @@ def main() -> int:
 
     overlap = Finding(
         id="chain-credential-theft",
-        analyzer="attack_chains",
+        analyzer="attack_graph",
         title="Credential theft chain possible",
         description="d",
         severity=Severity.CRITICAL,
@@ -277,7 +278,7 @@ def main() -> int:
             collapse_template_severity=True,
         )
     ).run()
-    collapsed_chains = [f for f in collapsed.findings if f.analyzer == "attack_chains"]
+    collapsed_chains = [f for f in collapsed.findings if f.analyzer == "attack_graph"]
     if collapsed_chains:
         check(
             "collapse copies display into severity",

@@ -2066,9 +2066,12 @@
   function renderAttackGraph() {
     const svg = document.getElementById("attack-graph");
     if (!svg) return;
-    const { nodes, edges } = DATA.attack_graph;
+    const graph = DATA.attack_graph || {};
+    const nodes = graph.nodes || [];
+    const edges = graph.edges || [];
     if (!nodes.length) {
       svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8">No attack chain data</text>';
+      renderAttackPaths(graph);
       return;
     }
 
@@ -2090,8 +2093,10 @@
     let markup = `<defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="rgba(59,130,246,0.7)"/></marker></defs>`;
 
     edges.forEach((e) => {
-      const from = positions[e.from];
-      const to = positions[e.to];
+      const fromId = e.from || e.from_node;
+      const toId = e.to || e.to_node;
+      const from = positions[fromId];
+      const to = positions[toId];
       if (!from || !to) return;
       markup += `<line class="graph-edge" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" marker-end="url(#arrowhead)"/>`;
     });
@@ -2099,7 +2104,7 @@
     nodes.forEach((n) => {
       const p = positions[n.id];
       if (!p) return;
-      const label = n.label.length > 14 ? n.label.slice(0, 12) + "…" : n.label;
+      const label = (n.label || n.id || "").length > 14 ? (n.label || n.id || "").slice(0, 12) + "…" : (n.label || n.id || "");
       markup += `
         <g class="graph-node" transform="translate(${p.x},${p.y})">
           <circle r="28"/>
@@ -2109,6 +2114,39 @@
 
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     svg.innerHTML = markup;
+    renderAttackPaths(graph);
+  }
+
+  function renderAttackPaths(graph) {
+    const panel = document.getElementById("attack-paths-panel");
+    const list = document.getElementById("attack-paths-list");
+    if (!panel || !list) return;
+    const paths = graph.paths || [];
+    if (!paths.length) {
+      panel.hidden = true;
+      list.innerHTML = "";
+      return;
+    }
+    panel.hidden = false;
+    list.innerHTML = paths
+      .map((path, idx) => {
+        const template = path.template_id ? `<strong>${escapeHtml(path.template_id)}</strong>` : `Path ${idx + 1}`;
+        const meta = [
+          path.chain_confidence != null ? `confidence ${path.chain_confidence}` : null,
+          path.path_reachability != null ? `reach ${path.path_reachability}` : null,
+          path.chain_risk_score != null ? `risk ${path.chain_risk_score}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const steps = (path.explanation || [])
+          .map((step, stepIdx) => {
+            const msg = typeof step === "string" ? step : step.message || "";
+            return `<li>${stepIdx + 1}. ${escapeHtml(msg)}</li>`;
+          })
+          .join("");
+        return `<article class="attack-path-card"><header>${template}${meta ? ` <span class="muted">(${escapeHtml(meta)})</span>` : ""}</header>${steps ? `<ol>${steps}</ol>` : ""}</article>`;
+      })
+      .join("");
   }
 
   function renderAppendix() {

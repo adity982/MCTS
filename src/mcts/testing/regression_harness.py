@@ -10,7 +10,6 @@ from typing import Any
 from mcts.analyzers.agentic_pr_sabotage import detect_agentic_pr_sabotage
 from mcts.analyzers.api_flooding import detect_api_flooding
 from mcts.analyzers.api_harvest import detect_api_harvest
-from mcts.analyzers.attack_chains import AttackChainAnalyzer
 from mcts.analyzers.authority_claim_tool import detect_authority_claim_tool
 from mcts.analyzers.autonomous_loop import detect_autonomous_loop_event
 from mcts.analyzers.backdoored_install import detect_backdoored_install_event
@@ -96,6 +95,7 @@ from mcts.fuzz.classifier import classify_response
 from mcts.fuzz.payloads import FuzzLevel, probes_for_level
 from mcts.inventory.models import InventoryEntry
 from mcts.mcp.models import CapabilityProfile, MCPServerInfo, MCPTool
+from mcts.scoring.capability_overlap import emit_capability_overlap_findings
 
 FIXTURES_ROOT = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "regression"
 REGRESSION_THRESHOLD = 80.0
@@ -268,8 +268,8 @@ def detect_data_leakage_static(entry: dict[str, Any]) -> bool:
 
 
 def detect_attack_chain_static(entry: dict[str, Any]) -> bool:
-    findings = AttackChainAnalyzer().analyze(_static_server(entry))
-    return any(f.analyzer == "attack_chains" for f in findings)
+    findings = emit_capability_overlap_findings(_static_server(entry))
+    return any(f.analyzer == "attack_graph" for f in findings)
 
 
 def detect_cross_server_static(entry: dict[str, Any]) -> bool:

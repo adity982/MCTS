@@ -417,7 +417,8 @@
         <p class="section-subtitle">How tools could be chained together for a multi-step attack (read → exfiltrate, etc.).</p>
         <div class="card card-interactive" data-card-action="goto:findings" aria-label="View findings related to attack paths">
           <span class="card-cta">View related issues →</span>
-          <p style="color:var(--muted);margin:0 0 16px">Each arrow shows a possible step between tools.</p>
+          <p style="color:var(--muted);margin:0 0 16px">Each arrow shows a possible step between tools. Policy edges are dashed; inferred edges are muted.</p>
+          <div id="attack-graph-layers" class="graph-layer-toolbar" role="toolbar" aria-label="Filter graph by layer" hidden></div>
           <div class="graph-wrap">
             <svg id="attack-graph" role="img" aria-label="Attack chain graph"></svg>
           </div>

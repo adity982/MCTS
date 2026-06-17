@@ -197,12 +197,17 @@ class AttackGraph:
         filtered.total_risk_score = self.total_risk_score
         return filtered
 
-    def to_report_dict(self) -> dict[str, Any]:
+    def to_report_dict(self, *, compress_for_ui: bool = False) -> dict[str, Any]:
         node_layers = {n.layer.value for n in self._nodes.values()}
         edge_layers = {e.layer.value for e in self._edges.values()}
         layers_present = sorted(node_layers | edge_layers)
         paths = [self._path_to_dict(chain) for chain in self.matched_chains]
-        return {
+        compression_stats: dict[str, Any] | None = None
+        if compress_for_ui:
+            from mcts.scoring.graph_compress import compress_paths
+
+            paths, compression_stats = compress_paths(paths)
+        payload = {
             "version": 3,
             "nodes": [n.model_dump(mode="json") for n in self._nodes.values()],
             "edges": [e.model_dump(mode="json") for e in self._edges.values()],
@@ -211,6 +216,9 @@ class AttackGraph:
             "total_risk_score": round(self.total_risk_score, 2),
             "layers_present": layers_present,
         }
+        if compression_stats:
+            payload["compression_stats"] = compression_stats
+        return payload
 
     def _path_to_dict(self, chain: MatchedChain) -> dict[str, Any]:
         path = chain.path
@@ -229,6 +237,8 @@ class AttackGraph:
             "finding_ids": [
                 chain.legacy_finding_id or f"chain-{chain.template_id.lower().replace('_', '-')}"
             ],
+            "recommended_fixes": chain.recommended_fixes,
+            "counterfactual_remediation": chain.counterfactual_remediation,
         }
 
     def to_findings(self) -> list[Finding]:

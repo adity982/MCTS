@@ -86,6 +86,21 @@ def matched_chain_to_finding(template_id: str, chains: list[MatchedChain]) -> Fi
                 "explanation": [step.model_dump(mode="json") for step in chain.explanation],
             }
         )
+    evidence_kwargs: dict[str, Any] = {
+        "template_id": template_id,
+        "path_proven": top.path.hop_count >= 2,
+        "chain_confidence": round(top.path_confidence, 3),
+        "path_reachability": round(top.path_reachability, 3),
+        "chain_risk_score": round(top.chain_risk_score, 3),
+        "trust_boundary_crossings": top.trust_boundary_crossings,
+        "exploit_cost": template.exploit_cost,
+        "paths": paths_payload,
+        "finding_class": template.finding_class,
+    }
+    if top.counterfactual_remediation:
+        evidence_kwargs["counterfactual_remediation"] = top.counterfactual_remediation
+    if top.recommended_fixes:
+        evidence_kwargs["recommended_fixes"] = top.recommended_fixes
     builder = (
         FindingBuilder(
             finding_id=finding_id,
@@ -97,17 +112,7 @@ def matched_chain_to_finding(template_id: str, chains: list[MatchedChain]) -> Fi
         )
         .confidence(top.path_confidence)
         .technique("MCTS-T-attack-graph")
-        .evidence(
-            template_id=template_id,
-            path_proven=top.path.hop_count >= 2,
-            chain_confidence=round(top.path_confidence, 3),
-            path_reachability=round(top.path_reachability, 3),
-            chain_risk_score=round(top.chain_risk_score, 3),
-            trust_boundary_crossings=top.trust_boundary_crossings,
-            exploit_cost=template.exploit_cost,
-            paths=paths_payload,
-            finding_class=template.finding_class,
-        )
+        .evidence(**evidence_kwargs)
         .fact(
             rule_id=template_id,
             match=template.title,

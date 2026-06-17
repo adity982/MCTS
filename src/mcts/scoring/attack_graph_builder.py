@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from mcts.core.config import ScanConfig
 from mcts.mcp.models import MCPServerInfo
 from mcts.reporting.models import Finding
 from mcts.scoring.attack_graph import AttackGraph
-from mcts.scoring.attack_graph_models import EdgeKind, canonical_node_id
+from mcts.scoring.attack_graph_models import EdgeKind, MatchedChain, canonical_node_id
 from mcts.scoring.attack_graph_policy import apply_policy_edges, seed_server_surfaces
 from mcts.scoring.attack_graph_producers import export_all_edges
 from mcts.scoring.graph_matcher import match_all_templates
@@ -46,9 +48,34 @@ class GraphBuilder:
             templates,
             top_per_template=3,
         )
+        matched = self._attach_graph_polish(matched, counterfactuals=self.config.attack_graph_enable_counterfactuals)
         graph.matched_chains = matched
         graph.total_risk_score = sum(chain.chain_risk_score for chain in matched)
         return graph
+
+    def _attach_graph_polish(
+        self,
+        chains: list[MatchedChain],
+        *,
+        counterfactuals: bool,
+    ) -> list[MatchedChain]:
+        from mcts.scoring.graph_counterfactual import counterfactual_for_chain
+        from mcts.scoring.graph_fixes import describe_fixes
+        from mcts.scoring.graph_templates import load_chain_templates
+
+        templates = {template.id: template for template in load_chain_templates()}
+        enriched: list[MatchedChain] = []
+        for chain in chains:
+            template = templates.get(chain.template_id)
+            fixes = describe_fixes(list(template.recommended_fixes)) if template else []
+            update: dict[str, Any] = {"recommended_fixes": fixes}
+            if counterfactuals:
+                update["counterfactual_remediation"] = counterfactual_for_chain(
+                    chain.template_id,
+                    chain.path.tool_names_on_path(),
+                )
+            enriched.append(chain.model_copy(update=update))
+        return enriched
 
     def _add_corroborated_invokes_edges(self, graph: AttackGraph, server: MCPServerInfo) -> None:
         """Optional overlap chains — disabled by default (spec forever default False)."""

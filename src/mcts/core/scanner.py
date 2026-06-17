@@ -257,7 +257,9 @@ class Scanner:
             attack_graph_model = GraphBuilder(config=self.config).build(server_info, findings)
             chain_findings = attack_graph_model.to_findings()
             findings.extend(chain_findings)
-            raw_graph = attack_graph_model.to_report_dict()
+            raw_graph = attack_graph_model.to_report_dict(
+                compress_for_ui=self.config.attack_graph_compress_for_ui,
+            )
             proven_legacy = {
                 chain.legacy_finding_id
                 for chain in attack_graph_model.matched_chains

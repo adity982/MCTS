@@ -2068,12 +2068,25 @@
     if (!svg) return;
     const graph = DATA.attack_graph || {};
     const nodes = graph.nodes || [];
-    const edges = graph.edges || [];
+    const allEdges = graph.edges || [];
+    const activeLayer = window.__attackGraphLayer || "all";
+    const edges =
+      activeLayer === "all"
+        ? allEdges
+        : allEdges.filter((e) => (e.layer || "dataflow") === activeLayer);
+    renderAttackGraphLayers(graph.layers_present || []);
     if (!nodes.length) {
       svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8">No attack chain data</text>';
       renderAttackPaths(graph);
       return;
     }
+
+    const visibleNodeIds = new Set();
+    edges.forEach((e) => {
+      visibleNodeIds.add(e.from || e.from_node);
+      visibleNodeIds.add(e.to || e.to_node);
+    });
+    const visibleNodes = nodes.filter((n) => visibleNodeIds.has(n.id));
 
     const width = svg.clientWidth || 800;
     const height = 400;
@@ -2082,8 +2095,8 @@
     const radius = Math.min(width, height) * 0.32;
     const positions = {};
 
-    nodes.forEach((n, i) => {
-      const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
+    visibleNodes.forEach((n, i) => {
+      const angle = (i / Math.max(visibleNodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
       positions[n.id] = {
         x: cx + radius * Math.cos(angle),
         y: cy + radius * Math.sin(angle),
@@ -2098,15 +2111,17 @@
       const from = positions[fromId];
       const to = positions[toId];
       if (!from || !to) return;
-      markup += `<line class="graph-edge" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" marker-end="url(#arrowhead)"/>`;
+      const edgeClass = e.edge_class ? ` graph-edge ${e.edge_class}` : " graph-edge";
+      markup += `<line class="${edgeClass.trim()}" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" marker-end="url(#arrowhead)"/>`;
     });
 
-    nodes.forEach((n) => {
+    visibleNodes.forEach((n) => {
       const p = positions[n.id];
       if (!p) return;
       const label = (n.label || n.id || "").length > 14 ? (n.label || n.id || "").slice(0, 12) + "…" : (n.label || n.id || "");
+      const trust = n.trust ? ` data-trust="${escapeHtml(n.trust)}"` : "";
       markup += `
-        <g class="graph-node" transform="translate(${p.x},${p.y})">
+        <g class="graph-node"${trust} transform="translate(${p.x},${p.y})">
           <circle r="28"/>
           <text text-anchor="middle" dy="4">${escapeHtml(label)}</text>
         </g>`;
@@ -2115,6 +2130,33 @@
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     svg.innerHTML = markup;
     renderAttackPaths(graph);
+  }
+
+  function renderAttackGraphLayers(layers) {
+    const toolbar = document.getElementById("attack-graph-layers");
+    if (!toolbar) return;
+    const unique = [...new Set(layers.filter(Boolean))];
+    if (!unique.length) {
+      toolbar.hidden = true;
+      toolbar.innerHTML = "";
+      return;
+    }
+    toolbar.hidden = false;
+    const active = window.__attackGraphLayer || "all";
+    const buttons = [
+      `<button type="button" class="graph-layer-btn${active === "all" ? " active" : ""}" data-layer="all">All layers</button>`,
+      ...unique.map(
+        (layer) =>
+          `<button type="button" class="graph-layer-btn${active === layer ? " active" : ""}" data-layer="${escapeHtml(layer)}">${escapeHtml(layer.replace(/_/g, " "))}</button>`,
+      ),
+    ];
+    toolbar.innerHTML = buttons.join("");
+    toolbar.querySelectorAll(".graph-layer-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        window.__attackGraphLayer = btn.dataset.layer || "all";
+        renderAttackGraph();
+      });
+    });
   }
 
   function renderAttackPaths(graph) {
@@ -2128,7 +2170,12 @@
       return;
     }
     panel.hidden = false;
-    list.innerHTML = paths
+    const compression = graph.compression_stats;
+    const compressionNote =
+      compression && compression.dropped > 0
+        ? `<p class="muted">Showing ${compression.compressed_count} of ${compression.original_count} matched paths (UI compression).</p>`
+        : "";
+    list.innerHTML = compressionNote + paths
       .map((path, idx) => {
         const template = path.template_id ? `<strong>${escapeHtml(path.template_id)}</strong>` : `Path ${idx + 1}`;
         const meta = [
@@ -2144,7 +2191,25 @@
             return `<li>${stepIdx + 1}. ${escapeHtml(msg)}</li>`;
           })
           .join("");
-        return `<article class="attack-path-card"><header>${template}${meta ? ` <span class="muted">(${escapeHtml(meta)})</span>` : ""}</header>${steps ? `<ol>${steps}</ol>` : ""}</article>`;
+        const fixes = (path.recommended_fixes || [])
+          .map((fix) => {
+            const label = fix.description || fix.kind || "";
+            return `<li>${escapeHtml(label)}</li>`;
+          })
+          .join("");
+        const fixesBlock = fixes
+          ? `<div class="attack-path-fixes"><strong>Suggested fixes</strong><ul>${fixes}</ul></div>`
+          : "";
+        const counterfactual = path.counterfactual_remediation;
+        const cfActions = counterfactual && counterfactual.actions
+          ? counterfactual.actions
+              .map((action) => `<li>${escapeHtml(action.action || action)}</li>`)
+              .join("")
+          : "";
+        const cfBlock = cfActions
+          ? `<div class="attack-path-fixes"><strong>Counterfactual</strong><ul>${cfActions}</ul></div>`
+          : "";
+        return `<article class="attack-path-card"><header>${template}${meta ? ` <span class="muted">(${escapeHtml(meta)})</span>` : ""}</header>${steps ? `<ol>${steps}</ol>` : ""}${fixesBlock}${cfBlock}</article>`;
       })
       .join("");
   }

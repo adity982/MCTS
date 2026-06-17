@@ -59,7 +59,21 @@ mcts inventory --full-toxic-flows
 
 # Theme for saved-notice styling only
 mcts inventory --theme minimal -o inventory.json
+
+# Privacy controls (see SECURITY.md — Inventory Privacy)
+mcts inventory --paths-only
+mcts inventory --paths-only --redact-paths
+mcts inventory --config-path ~/.cursor/mcp.json
+mcts inventory --config-path ./team-mcp.json -o team.json --redact-paths
+mcts inventory --config-path ~/.cursor/mcp.json --scan-all -o inventory-scan-all.json
 ```
+
+`--paths-only` lists config locations without parsing server commands or env keys. It
+cannot be combined with `--scan`, `--scan-all`, `--skills`, or `--output`.
+
+`--config-path` inventories every server in one file (contrast with
+`mcts scan --config <file> --server <name>`, which runs a full security scan on one
+named server).
 
 ### Exit codes
 
@@ -259,6 +273,9 @@ Full list: [Feature Expansion Plan — Discovery](../more/feature-expansion-plan
 ## Security note
 
 Inventory reads configuration files that may **reference** secrets via environment variables. MCTS does not print env values in inventory output. Treat exported JSON like any config audit artifact.
+
+For privacy controls (`--paths-only`, `--config-path`, `--redact-paths`) and the
+read-only inventory model, see [SECURITY.md — Inventory Privacy](../../SECURITY.md#inventory-privacy).
 
 ---
 

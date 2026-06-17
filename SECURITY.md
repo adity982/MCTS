@@ -33,6 +33,27 @@ MCTS is a security analysis tool. Only scan MCP servers you own or have explicit
 
 HTML reports are self-contained files with embedded scan data and vendored chart assets. They do not transmit data to MCTS or third parties when you open the file in a browser.
 
+## Inventory Privacy
+
+`mcts inventory` discovers MCP configuration files in well-known locations
+(Cursor, Claude Desktop, VS Code, Windsurf, Gemini, Codex, and others). This is
+a **read-only** operation — no data is sent externally, no files are modified,
+and environment variable **values** are not exported (only key names when parsing
+configs).
+
+To limit exposure on shared or sensitive machines:
+
+- `--paths-only` — list config file locations without parsing server details
+- `--config-path <file>` — scope discovery to a single explicit file
+- `--redact-paths` — replace home directory with `~` in inventory entry and
+  skill paths in terminal output and default inventory JSON (`-o inventory.json`)
+
+`--redact-paths` does not redact paths inside nested scan reports produced by
+`--scan-all`. Treat exported inventory JSON like any config audit artifact.
+
+In CI environments, ephemeral runners typically have no MCP configs and inventory
+will report zero entries.
+
 ## Documentation
 
 - [Documentation index](docs/index.md)

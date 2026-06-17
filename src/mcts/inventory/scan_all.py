@@ -15,9 +15,19 @@ from mcts.reporting.display import summary_for_gates
 from mcts.reporting.models import ScanReport
 
 
-def run_inventory_scan_all(base_config: ScanConfig) -> tuple[InventoryReport, list[dict]]:
+def run_inventory_scan_all(
+    base_config: ScanConfig,
+    *,
+    config_path: Path | None = None,
+    skills: bool = False,
+    skills_dirs: list[Path] | None = None,
+) -> tuple[InventoryReport, list[dict]]:
     """Run a full security scan for each resolvable inventory entry."""
-    inventory = run_inventory()
+    inventory = run_inventory(
+        config_path=config_path,
+        skills=skills,
+        skills_dirs=skills_dirs,
+    )
     rows: list[dict] = []
     for entry in inventory.entries:
         scan_config = entry_to_scan_config(entry, base_config)

@@ -1280,6 +1280,18 @@ def inventory(
             help="Skip merging .mcts/policy.yaml into inventory scans",
         ),
     ] = False,
+    redact_paths: Annotated[
+        bool,
+        typer.Option("--redact-paths", help="Replace home directory with ~ in output"),
+    ] = False,
+    paths_only: Annotated[
+        bool,
+        typer.Option("--paths-only", help="List config file paths without parsing server details"),
+    ] = False,
+    config_path_opt: Annotated[
+        Path | None,
+        typer.Option("--config-path", help="Scope to a single config file instead of auto-discovery"),
+    ] = None,
 ) -> None:
     """Discover MCP servers configured across 12+ agent clients."""
     from mcts.analyzers.cross_server import CrossServerAnalyzer
@@ -1287,6 +1299,12 @@ def inventory(
     from mcts.analyzers.toxic_flows import analyze_inventory as analyze_toxic_flows
     from mcts.core.config import ScanConfig
     from mcts.governance import load_policy, merge_scan_config_with_policy
+    from mcts.inventory.discoverers import (
+        discover_config_paths,
+        redact_entry_dict,
+        redact_home,
+        redact_skill_dict,
+    )
     from mcts.inventory.runner import enrich_with_tool_names, run_inventory
     from mcts.inventory.scan_all import (
         collect_scan_all_gate_violations,
@@ -1304,6 +1322,30 @@ def inventory(
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=2) from exc
 
+    if paths_only and (scan or scan_all or skills):
+        console.print(
+            "[red]Error:[/red] --paths-only cannot be combined with --scan, --scan-all, or --skills."
+        )
+        raise typer.Exit(code=2)
+    if paths_only and output is not None:
+        console.print("[red]Error:[/red] --paths-only does not support --output.")
+        raise typer.Exit(code=2)
+
+    if paths_only:
+        if config_path_opt is not None:
+            scoped = config_path_opt.expanduser().resolve()
+            rows = [("user", scoped)] if scoped.exists() else []
+        else:
+            rows = discover_config_paths()
+        if not rows:
+            console.print("[dim]No MCP config files found.[/dim]")
+            return
+        console.print(f"[bold]MCP config files[/bold] — {len(rows)} found")
+        for client, path in rows:
+            display = redact_home(str(path)) if redact_paths else str(path)
+            console.print(f"  [{client}] {display}")
+        return
+
     inv_config = merge_scan_config_with_policy(
         ScanConfig(
             target=Path("."),
@@ -1315,7 +1357,12 @@ def inventory(
     )
 
     if scan_all:
-        inventory_report, scan_rows = run_inventory_scan_all(inv_config)
+        inventory_report, scan_rows = run_inventory_scan_all(
+            inv_config,
+            config_path=config_path_opt,
+            skills=skills,
+            skills_dirs=skills_dir,
+        )
         console.print(
             f"[bold]Inventory scan-all[/bold] — {len(scan_rows)} server(s), "
             f"{inventory_report.config_files_found} config file(s)"
@@ -1339,7 +1386,11 @@ def inventory(
             raise typer.Exit(code=1)
         return
 
-    report = run_inventory(skills=skills, skills_dirs=skills_dir)
+    report = run_inventory(
+        skills=skills,
+        skills_dirs=skills_dir,
+        config_path=config_path_opt,
+    )
     entries = enrich_with_tool_names(report.entries) if scan else report.entries
 
     shadow_findings = enrich_findings(CrossServerAnalyzer(entries).analyze_inventory(entries))
@@ -1357,12 +1408,14 @@ def inventory(
         console.print(f"  • {client}")
     for entry in entries:
         tools = f" ({len(entry.tools)} tools)" if entry.tools else ""
-        console.print(f"  [{entry.client}] {entry.server_name}{tools} — {entry.config_path}")
+        display_path = redact_home(entry.config_path) if redact_paths else entry.config_path
+        console.print(f"  [{entry.client}] {entry.server_name}{tools} — {display_path}")
 
     if skills:
         console.print(f"\n[bold]Skills[/bold] — {len(report.skills)} SKILL.md file(s)")
         for skill in report.skills:
-            console.print(f"  [{skill.client}] {skill.skill_name} — {skill.skill_path}")
+            skill_path = redact_home(skill.skill_path) if redact_paths else skill.skill_path
+            console.print(f"  [{skill.client}] {skill.skill_name} — {skill_path}")
         if skill_findings:
             console.print(f"\n[yellow]Skill findings:[/yellow] {len(skill_findings)} issue(s)")
             for finding in skill_findings[:5]:
@@ -1381,11 +1434,13 @@ def inventory(
     payload = {
         "clients_scanned": report.clients_scanned,
         "config_files_found": report.config_files_found,
-        "entries": [entry.model_dump() for entry in entries],
+        "entries": [redact_entry_dict(entry.model_dump(), redact=redact_paths) for entry in entries],
         "shadow_findings": [f.model_dump() for f in shadow_findings],
     }
     if skills:
-        payload["skills"] = [skill.model_dump() for skill in report.skills]
+        payload["skills"] = [
+            redact_skill_dict(skill.model_dump(), redact=redact_paths) for skill in report.skills
+        ]
         payload["skill_findings"] = [f.model_dump() for f in skill_findings]
     if toxic_findings:
         payload["toxic_flow_findings"] = [f.model_dump() for f in toxic_findings]

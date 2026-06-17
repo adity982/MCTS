@@ -349,6 +349,9 @@ mcts inventory [options]
 | `--skills` | false | Discover and scan `SKILL.md` files in agent skill directories |
 | `--findings-trust-mode` | unset (`off`) | Apply trust validator to inventory/toxic-flow findings. Omit to inherit from `.mcts/policy.yaml`; pass explicitly (including `off`) to override policy. |
 | `--ignore-policy` | off | Skip merging `.mcts/policy.yaml` |
+| `--paths-only` | false | List config file paths without parsing server details |
+| `--config-path` | — | Scope discovery to a single config file |
+| `--redact-paths` | false | Replace home directory with `~` in inventory entry and skill paths |
 | `--output`, `-o` | — | Write inventory JSON |
 | `--theme` | `cyber` | Terminal theme |
 

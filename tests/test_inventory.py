@@ -59,3 +59,88 @@ def test_taxonomy_catalog_loads() -> None:
     data = load_taxonomy()
     assert "MCTS-T-1001" in data["techniques"]
     assert data["mitigations"]
+
+
+def test_redact_home() -> None:
+    from mcts.inventory.discoverers import redact_home
+
+    home = str(Path.home())
+    assert redact_home(f"{home}/.cursor/mcp.json") == "~/.cursor/mcp.json"
+    assert redact_home("/other/path") == "/other/path"
+
+
+def test_redact_home_resolves_before_prefix() -> None:
+    from mcts.inventory.discoverers import redact_home
+
+    home = Path.home().resolve()
+    target = home / ".cursor" / "mcp.json"
+    assert redact_home(str(target)) == "~/.cursor/mcp.json"
+
+
+def test_redact_entry_dict_replaces_config_path() -> None:
+    from mcts.inventory.discoverers import redact_entry_dict
+
+    home = str(Path.home())
+    raw = {"config_path": f"{home}/.cursor/mcp.json", "server_name": "demo"}
+    redacted = redact_entry_dict(raw, redact=True)
+    assert redacted["config_path"] == "~/.cursor/mcp.json"
+    assert "confing_path" not in redacted
+
+
+def test_config_path_scopes_to_single_file(tmp_path: Path) -> None:
+    config = tmp_path / "custom.json"
+    config.write_text(json.dumps({"mcpServers": {"myserver": {"command": "node", "args": ["server.js"]}}}))
+    from mcts.inventory.runner import run_inventory
+
+    report = run_inventory(config_path=config)
+    assert len(report.entries) == 1
+    assert report.entries[0].server_name == "myserver"
+    assert report.clients_scanned == ["user"]
+    assert report.config_files_found == 1
+
+
+def test_config_path_sets_config_files_found_for_empty_parse(tmp_path: Path) -> None:
+    config = tmp_path / "empty.json"
+    config.write_text(json.dumps({"other": []}))
+    from mcts.inventory.runner import run_inventory
+
+    report = run_inventory(config_path=config)
+    assert report.entries == []
+    assert report.config_files_found == 1
+
+
+def test_config_path_with_skills(tmp_path: Path, monkeypatch) -> None:
+    config = tmp_path / "custom.json"
+    config.write_text(json.dumps({"mcpServers": {"myserver": {"command": "node"}}}))
+    skill_dir = tmp_path / "skills" / "demo-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo skill\n")
+    monkeypatch.chdir(tmp_path)
+
+    from mcts.inventory.runner import run_inventory
+
+    report = run_inventory(config_path=config, skills=True, skills_dirs=[tmp_path / "skills"])
+    assert report.config_files_found == 1
+    assert report.skills
+
+
+def test_config_path_missing_file_returns_empty(tmp_path: Path) -> None:
+    from mcts.inventory.runner import run_inventory
+
+    report = run_inventory(config_path=tmp_path / "nope.json")
+    assert report.entries == []
+    assert report.config_files_found == 0
+
+
+def test_run_inventory_scan_all_respects_config_path(tmp_path: Path) -> None:
+    config = tmp_path / "custom.json"
+    config.write_text(json.dumps({"mcpServers": {"myserver": {"command": "node", "args": ["server.js"]}}}))
+    from mcts.core.config import ScanConfig
+    from mcts.inventory.scan_all import run_inventory_scan_all
+
+    report, rows = run_inventory_scan_all(ScanConfig(target=Path(".")), config_path=config)
+    assert report.config_files_found == 1
+    assert len(report.entries) == 1
+    assert report.entries[0].server_name == "myserver"
+    assert len(rows) == 1
+    assert rows[0]["server_name"] == "myserver"

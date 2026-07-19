@@ -101,6 +101,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Policy bool merge** — unset bronze flags inherit from `.mcts/policy.yaml`; explicit CLI `False` preserved
 - **`_has_proven_path`** — empty `finding_ids` no longer marks every chain as proven
 - **Compliance rows** — receive `rule_stability` after pipeline append
+### Security
+
+- Broaden secret detection for AI/provider tokens, modern GitHub tokens, package registry tokens, private keys, and common JSON/YAML assignments; redact matched credentials from finding evidence.
 
 ## [0.1.4] - 2026-06-12
 

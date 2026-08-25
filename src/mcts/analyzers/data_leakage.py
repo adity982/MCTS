@@ -32,10 +32,17 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str], Severity]] = [
     ),
     ("JWT", re.compile(r"eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+"), Severity.HIGH),
     (
+        "Bearer Token",
+        re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{12,}"),
+        Severity.HIGH,
+    ),
+    (
         "Generic Secret Assignment",
         re.compile(
-            r"(?i)[\"']?(?:api[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|"
-            r"database[_-]?password|db[_-]?password|password|secret|token)[\"']?\s*[:=]\s*"
+            r"(?i)[\"']?(?:api[_-]?(?:key|token)|client[_-]?secret|access[_-]?token|"
+            r"auth[_-]?token|refresh[_-]?token|private[_-]?key|webhook[_-]?secret|"
+            r"signing[_-]?secret|database[_-]?password|db[_-]?password|password|secret|token)"
+            r"[\"']?\s*[:=]\s*"
             r"[\"']?[A-Za-z0-9_./+=:@-]{8,}"
         ),
         Severity.HIGH,

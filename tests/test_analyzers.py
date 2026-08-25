@@ -60,6 +60,8 @@ def test_data_leakage_ignores_loopback_urls_in_log_messages() -> None:
         ("token = 'hf_" + "b" * 30 + "'", "hf_" + "b" * 30),
         ('{"apiKey": "super-secret-value"}', "super-secret-value"),
         ("DB_PASSWORD: database-password", "database-password"),
+        ("refreshToken: refresh-value-123", "refresh-value-123"),
+        ("Authorization: Bearer bearer-value-12345", "bearer-value-12345"),
         ("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----"),
     ],
 )

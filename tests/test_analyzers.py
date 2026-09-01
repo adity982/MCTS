@@ -65,9 +65,7 @@ def test_data_leakage_ignores_loopback_urls_in_log_messages() -> None:
         ("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----"),
     ],
 )
-def test_data_leakage_detects_and_redacts_common_secret_formats(
-    source: str, secret: str
-) -> None:
+def test_data_leakage_detects_and_redacts_common_secret_formats(source: str, secret: str) -> None:
     server = MCPServerInfo(name="secret-fixture", source_files={"config.txt": source})
 
     findings = DataLeakageAnalyzer().analyze(server)
@@ -91,6 +89,33 @@ def test_data_leakage_redacts_multiple_secrets_from_the_same_line() -> None:
     evidence = json.dumps([finding.evidence for finding in findings])
     assert anthropic_key not in evidence
     assert huggingface_token not in evidence
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'api_key = "YOUR_API_KEY"',
+        'token = "REPLACE_WITH_TOKEN"',
+        'password = "INSERT_KEY_HERE"',
+    ],
+)
+def test_data_leakage_ignores_explicit_template_secrets(source: str) -> None:
+    server = MCPServerInfo(name="template-fixture", source_files={"server.py": source})
+
+    assert DataLeakageAnalyzer().analyze(server) == []
+
+
+def test_data_leakage_does_not_hide_secret_near_template_comment() -> None:
+    secret = "real-secret-value"
+    server = MCPServerInfo(
+        name="secret-with-guidance",
+        source_files={"server.py": f'api_key = "{secret}"  # replace with YOUR_API_KEY'},
+    )
+
+    findings = DataLeakageAnalyzer().analyze(server)
+
+    assert findings
+    assert secret not in json.dumps([finding.evidence for finding in findings])
 
 
 def test_docker_dedupe_dockerfile_and_containerfile(tmp_path: Path) -> None:

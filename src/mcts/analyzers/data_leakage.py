@@ -75,6 +75,10 @@ SECRET_ENV_VARS = (
 
 HIDDEN_CHAR_PATTERN = re.compile(r"[\u200b-\u200f\ufeff\u202a-\u202e]")
 
+TEMPLATE_SECRET_PATTERN = re.compile(
+    r"(?i)\b(?:YOUR_(?:API_)?KEY|REPLACE_WITH(?:_[A-Z0-9]+)*|INSERT_(?:API_)?KEY(?:_HERE)?)\b"
+)
+
 LOGGING_CALL_PATTERN = re.compile(
     r"""
     ^\s*
@@ -100,6 +104,11 @@ def _redact_secrets(line: str) -> str:
     for _, pattern, _ in SECRET_PATTERNS:
         redacted = pattern.sub("[REDACTED]", redacted)
     return redacted.strip()[:120]
+
+
+def _is_template_secret(match: re.Match[str]) -> bool:
+    """Recognize explicit copy-paste placeholders without hiding nearby credentials."""
+    return bool(TEMPLATE_SECRET_PATTERN.search(match.group(0)))
 
 
 class DataLeakageAnalyzer(BaseAnalyzer):
@@ -162,6 +171,8 @@ class DataLeakageAnalyzer(BaseAnalyzer):
                 for label, pattern, severity in SECRET_PATTERNS:
                     match = pattern.search(line)
                     if not match:
+                        continue
+                    if _is_template_secret(match):
                         continue
                     if label == "Internal URL" and _is_logging_statement(line):
                         continue

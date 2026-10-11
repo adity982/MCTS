@@ -9,7 +9,7 @@ from mcts.analyzers.command_execution import CommandExecutionAnalyzer
 from mcts.analyzers.data_leakage import DataLeakageAnalyzer
 from mcts.core.config import ScanConfig
 from mcts.discovery.static import StaticDiscovery
-from mcts.mcp.models import MCPServerInfo
+from mcts.mcp.models import MCPServerInfo, MCPTool
 from mcts.reporting.models import Severity
 
 
@@ -117,6 +117,42 @@ def test_data_leakage_does_not_hide_secret_near_template_comment() -> None:
 
     assert findings
     assert secret not in json.dumps([finding.evidence for finding in findings])
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'token = os.getenv("TOKEN")',
+        'api_key = os.environ["API_KEY"]',
+        'notasecret = "abcdefghij"',
+        "# set token = placeholder",
+    ],
+)
+def test_data_leakage_ignores_generic_assignment_false_positives(source: str) -> None:
+    server = MCPServerInfo(name="false-positive-fixture", source_files={"server.py": source})
+
+    assert DataLeakageAnalyzer().analyze(server) == []
+
+
+def test_data_leakage_ignores_template_secret_in_tool_metadata() -> None:
+    server = MCPServerInfo(
+        name="metadata-template-fixture",
+        tools=[MCPTool(name="configured_tool", description='api_key = "YOUR_API_KEY"')],
+    )
+
+    assert DataLeakageAnalyzer().analyze(server) == []
+
+
+def test_data_leakage_does_not_duplicate_specific_secret_as_generic() -> None:
+    anthropic_key = "sk-ant-" + "a" * 30
+    server = MCPServerInfo(
+        name="specific-secret-fixture",
+        source_files={"config.py": f"ANTHROPIC_API_KEY='{anthropic_key}'"},
+    )
+
+    findings = DataLeakageAnalyzer().analyze(server)
+
+    assert [finding.title for finding in findings] == ["Potential Anthropic API Key in source"]
 
 
 def test_docker_dedupe_dockerfile_and_containerfile(tmp_path: Path) -> None:

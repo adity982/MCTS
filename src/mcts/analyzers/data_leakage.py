@@ -40,11 +40,12 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str], Severity]] = [
     (
         "Generic Secret Assignment",
         re.compile(
-            r"(?i)[\"']?(?:api[_-]?(?:key|token)|client[_-]?secret|access[_-]?token|"
+            r"(?i)[\"']?\b(?:api[_-]?(?:key|token)|client[_-]?secret|access[_-]?token|"
             r"auth[_-]?token|refresh[_-]?token|private[_-]?key|webhook[_-]?secret|"
             r"signing[_-]?secret|database[_-]?password|db[_-]?password|password|secret|token)"
             r"[\"']?\s*[:=]\s*"
-            r"[\"']?[A-Za-z0-9_./+=:@-]{8,}"
+            r"(?:(?P<quote>[\"'])[A-Za-z0-9_./+=:@-]{8,}(?P=quote)|"
+            r"(?![A-Za-z0-9_./+=:@-]*\.)[A-Za-z0-9_/+=:@-]{8,})"
         ),
         Severity.HIGH,
     ),
@@ -154,25 +155,27 @@ class DataLeakageAnalyzer(BaseAnalyzer):
         for tool in server.tools:
             corpus = f"{tool.name} {tool.description} {tool.input_schema}"
             for label, pattern, severity in SECRET_PATTERNS:
-                if pattern.search(corpus):
-                    findings.append(
-                        build_analyzer_finding(
-                            finding_id=f"leak-meta-{tool.name}-{label.lower().replace(' ', '-')}",
-                            analyzer=self.name,
-                            title=f"Potential {label} exposure in {tool.name}",
-                            description=f"Pattern matching {label} found in tool metadata.",
-                            severity=severity,
-                            recommendation="Remove secrets from tool definitions; use secure secret stores.",
-                            rule_id="RULE_LEAK_PATTERN",
-                            match=label,
-                            field="tool_metadata",
-                            tool=tool.name,
-                            location=SourceLocation(file=tool.source_file or "", line=tool.source_line),
-                            technique_id="MCTS-T-1004",
-                            confidence=0.8,
-                            extra_evidence={"pattern": pattern.pattern},
-                        )
+                match = pattern.search(corpus)
+                if not match or _is_template_secret(match):
+                    continue
+                findings.append(
+                    build_analyzer_finding(
+                        finding_id=f"leak-meta-{tool.name}-{label.lower().replace(' ', '-')}",
+                        analyzer=self.name,
+                        title=f"Potential {label} exposure in {tool.name}",
+                        description=f"Pattern matching {label} found in tool metadata.",
+                        severity=severity,
+                        recommendation="Remove secrets from tool definitions; use secure secret stores.",
+                        rule_id="RULE_LEAK_PATTERN",
+                        match=label,
+                        field="tool_metadata",
+                        tool=tool.name,
+                        location=SourceLocation(file=tool.source_file or "", line=tool.source_line),
+                        technique_id="MCTS-T-1004",
+                        confidence=0.8,
+                        extra_evidence={"pattern": pattern.pattern},
                     )
+                )
             for env_var in SECRET_ENV_VARS:
                 if env_var in corpus:
                     findings.append(
@@ -200,9 +203,17 @@ class DataLeakageAnalyzer(BaseAnalyzer):
 
         for file_path, content in server.source_files.items():
             for line_no, line in enumerate(content.splitlines(), start=1):
+                specific_pattern_matched = any(
+                    label != "Generic Secret Assignment" and pattern.search(line)
+                    for label, pattern, _ in SECRET_PATTERNS
+                )
                 for label, pattern, severity in SECRET_PATTERNS:
                     match = pattern.search(line)
                     if not match:
+                        continue
+                    if label == "Generic Secret Assignment" and (
+                        specific_pattern_matched or line.lstrip().startswith(("#", "//"))
+                    ):
                         continue
                     if _is_template_secret(match):
                         continue
